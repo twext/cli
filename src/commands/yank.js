@@ -1,5 +1,4 @@
-import { readProjectConfig } from "../project.js";
-import { EXTENSION_ID_PATTERN } from "../validate.js";
+import { readExtensionId } from "../validate.js";
 import { resolveHubUrl, resolveNamespace, resolveToken, yankVersion } from "../hub.js";
 
 export async function yankCommand(product, version, configPath, { url, token }, log) {
@@ -22,16 +21,9 @@ export async function yankCommand(product, version, configPath, { url, token }, 
 
   let id;
   try {
-    id = readProjectConfig(configPath).extension?.id;
-  } catch {
-    id = undefined;
-  }
-  if (!id) {
-    log.error(`"${configPath}" has no extension.id; run twext yank from the project directory.`);
-    return false;
-  }
-  if (typeof id !== "string" || !EXTENSION_ID_PATTERN.test(id)) {
-    log.error(`extension.id "${id}" is invalid; expected 1-64 lower-case letters or digits.`);
+    id = readExtensionId(configPath, "yank");
+  } catch (err) {
+    log.error(err.message);
     return false;
   }
 

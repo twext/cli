@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { compileExtension } from "../compile.js";
 import { validateProject } from "../validate.js";
 import {
@@ -8,26 +9,9 @@ import {
   resolveNamespace,
   resolveToken,
 } from "../hub.js";
+import { createProjectTarball } from "../tarball.js";
 
-function manifestOf(config) {
-  const id = config.extension.id;
-  const manifest = {
-    id,
-    name: config.extension.name ?? config.name ?? id,
-    version: String(config.version),
-    license: String(config.license ?? "MIT"),
-    description: String(config.description ?? ""),
-  };
-  if (typeof config.author === "string" && config.author) manifest.author = config.author;
-  for (const color of ["color1", "color2", "color3"]) {
-    if (typeof config.extension[color] === "string" && config.extension[color]) {
-      manifest[color] = config.extension[color];
-    }
-  }
-  return manifest;
-}
-
-export async function publishCommand(product, configPath, { url, token }, log) {
+export async function publishCommand(product, configPath, { url, token, private: isPrivate }, log) {
   const result = await validateProject(configPath);
   if (!result.ok) {
     for (const message of result.errors) log.error(message);
@@ -35,9 +19,13 @@ export async function publishCommand(product, configPath, { url, token }, log) {
   }
   for (const message of result.warnings) log.warn(message);
 
-  const { config } = result.project;
-  const manifest = manifestOf(config);
-  const code = compileExtension(result.project, product);
+  const { config, root } = result.project;
+  const id = config.extension.id;
+  const version = String(config.version);
+
+  // The hub compiles what it receives, so this build exists only to fail
+  // before the upload rather than after it.
+  compileExtension(result.project, product);
 
   const hub = resolveHubUrl(url);
   const namespace = resolveNamespace(undefined, hub);
@@ -52,16 +40,33 @@ export async function publishCommand(product, configPath, { url, token }, log) {
     return false;
   }
 
-  log.progress(`Publishing ${manifest.id}@${manifest.version} to @${namespace}...`);
-
-  const publish = () => publishVersion(hub, authToken, namespace, manifest.id, manifest, code);
-  let version;
+  const output = config.outputPath
+    ? resolve(root, config.outputPath)
+    : resolve(root, product.defaults.outputDirectory, "extension.js");
+  let tarball;
   try {
-    version = await publish();
+    tarball = await createProjectTarball(root, configPath, output);
+  } catch (err) {
+    log.error(`Could not pack the project: ${err.message}`);
+    return false;
+  }
+
+  log.progress(`Publishing ${id}@${version}${isPrivate ? " (private)" : ""} to @${namespace}...`);
+
+  const fail = (err) => {
+    log.error(err.message);
+    if (err.data?.buildLog) log.raw(err.data.buildLog);
+    return false;
+  };
+
+  const publish = () =>
+    publishVersion(hub, authToken, namespace, id, tarball, isPrivate ? "private" : "public");
+  let created;
+  try {
+    created = await publish();
   } catch (err) {
     if (!(err instanceof HubError && err.status === 403 && /terms/i.test(err.message))) {
-      log.error(err.message);
-      return false;
+      return fail(err);
     }
     if (explicitToken) {
       log.error(
@@ -71,20 +76,19 @@ export async function publishCommand(product, configPath, { url, token }, log) {
     }
     log.progress("Accepting the current Terms of Service...");
     try {
-      await acceptTerms(hub, authToken);
-      version = await publish();
+      await acceptTerms(hub, authToken, namespace);
+      created = await publish();
     } catch (acceptErr) {
-      log.error(acceptErr.message);
-      return false;
+      return fail(acceptErr);
     }
   }
 
-  if (version.status === "pending") {
-    log.success(`${manifest.id}@${manifest.version} submitted for review (status: pending).`);
+  if (created.status === "pending") {
+    log.success(`${id}@${version} submitted for review (status: pending).`);
     log.info("An admin must approve it before it appears in the registry.");
   } else {
-    log.success(`Published ${manifest.id}@${manifest.version}`);
-    if (version.dist?.downloadUrl) log.bullet(version.dist.downloadUrl);
+    log.success(`Published ${id}@${version}`);
+    if (created.dist?.downloadUrl) log.bullet(created.dist.downloadUrl);
   }
   return true;
 }

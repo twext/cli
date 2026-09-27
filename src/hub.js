@@ -7,12 +7,13 @@ const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 export const NAMESPACE_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
-export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v0";
+export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v1";
 
 export class HubError extends Error {
-  constructor(message, status) {
+  constructor(message, status, data) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -76,17 +77,25 @@ export function resolveNamespace(flag, hub, env = process.env) {
   return flag ?? env.TWEXTHUB_NAMESPACE ?? storedCredentialsFor(hub).namespace;
 }
 
-async function hubRequest(base, path, { method = "GET", token, body } = {}) {
+async function hubRequest(
+  base,
+  path,
+  { method = "GET", token, body, raw, contentType, binary } = {},
+) {
   const url = `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
   let response;
   try {
     response = await fetch(url, {
       method,
       headers: {
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(raw !== undefined
+          ? { "content-type": contentType }
+          : body === undefined
+            ? {}
+            : { "content-type": "application/json" }),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
       redirect: "error",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -98,38 +107,48 @@ async function hubRequest(base, path, { method = "GET", token, body } = {}) {
     }
     throw new HubError(`Could not reach the hub at ${base}: ${err.message}`);
   }
-  const text = await response.text();
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (binary && response.ok) return buffer;
+  const text = buffer.toString("utf8");
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
     const detail =
       data?.detail ??
       data?.errors?.map((error) => `${error.field}: ${error.message}`).join("; ") ??
       (data?.title ? `${data.title} (HTTP ${response.status})` : `HTTP ${response.status}`);
-    throw new HubError(detail, response.status);
+    throw new HubError(detail, response.status, data);
   }
   return data;
 }
 
 export async function login(base, namespace, password) {
-  return hubRequest(base, "/auth/login", { method: "POST", body: { namespace, password } });
+  return hubRequest(base, "/sessions", { method: "POST", body: { namespace, password } });
 }
 
 export async function signup(base, namespace, password, displayName) {
-  return hubRequest(base, "/auth/signup", {
+  return hubRequest(base, "/users", {
     method: "POST",
     body: { namespace, password, ...(displayName ? { displayName } : {}) },
   });
 }
 
-export async function acceptTerms(base, token) {
-  return hubRequest(base, "/terms/accept", { method: "POST", token });
+// Acceptance is recorded against the text the account is shown, so the version
+// has to be read from the hub first and then patched onto the caller's own user.
+export async function acceptTerms(base, token, namespace) {
+  const terms = await hubRequest(base, "/terms");
+  return hubRequest(base, `/users/${namespace}`, {
+    method: "PATCH",
+    token,
+    body: { termsAcceptedVersion: terms.version },
+  });
 }
 
-export async function publishVersion(base, token, namespace, id, manifest, code) {
-  return hubRequest(base, `/@${namespace}/${id}/versions`, {
+export async function publishVersion(base, token, namespace, id, tarball, visibility) {
+  return hubRequest(base, `/@${namespace}/${id}/versions?visibility=${visibility}`, {
     method: "POST",
     token,
-    body: { manifest, code },
+    raw: tarball,
+    contentType: "application/gzip",
   });
 }
 
@@ -139,4 +158,80 @@ export async function yankVersion(base, token, namespace, id, version) {
 
 export async function createAutomationToken(base, token, body) {
   return hubRequest(base, "/tokens", { method: "POST", token, body });
+}
+
+export async function revokeCurrentSession(base, token) {
+  return hubRequest(base, "/sessions/current", { method: "DELETE", token });
+}
+
+export async function revokeCurrentToken(base, token) {
+  return hubRequest(base, "/tokens/current", { method: "DELETE", token });
+}
+
+// These reads are public for public versions, but the hub only shows a caller
+// its private versions when the request carries a bearer token.
+export async function getExtension(base, namespace, id, token) {
+  return hubRequest(base, `/@${namespace}/${id}`, { token });
+}
+
+export async function getVersion(base, namespace, id, version, token) {
+  return hubRequest(base, `/@${namespace}/${id}/versions/${encodeURIComponent(version)}`, {
+    token,
+  });
+}
+
+// Highest SemVer first, so the first entry is the one a range resolves to.
+export async function listVersions(base, namespace, id, range, token) {
+  const query = new URLSearchParams({ limit: "50" });
+  if (range) query.set("range", range);
+  return hubRequest(base, `/@${namespace}/${id}/versions?${query}`, { token });
+}
+
+export async function searchExtensions(base, query, sort, token) {
+  const params = new URLSearchParams({ limit: "50" });
+  if (query) params.set("query", query);
+  if (sort) params.set("sort", sort);
+  return hubRequest(base, `/search?${params}`, { token });
+}
+
+export async function downloadSource(base, token, namespace, id, version) {
+  return hubRequest(base, `/@${namespace}/${id}/versions/${encodeURIComponent(version)}/source`, {
+    token,
+    binary: true,
+  });
+}
+
+export async function listNotifications(base, token) {
+  return hubRequest(base, "/notifications?limit=20", { token });
+}
+
+export async function markNotificationsRead(base, token, ids) {
+  return hubRequest(base, "/notifications", { method: "PATCH", token, body: { ids } });
+}
+
+export async function listDistTags(base, namespace, id, token) {
+  return hubRequest(base, `/@${namespace}/${id}/tags`, { token });
+}
+
+export async function setDistTag(base, token, namespace, id, tag, version) {
+  return hubRequest(base, `/@${namespace}/${id}/tags/${encodeURIComponent(tag)}`, {
+    method: "PUT",
+    token,
+    body: { version },
+  });
+}
+
+export async function deleteDistTag(base, token, namespace, id, tag) {
+  return hubRequest(base, `/@${namespace}/${id}/tags/${encodeURIComponent(tag)}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function setDeprecation(base, token, namespace, id, version, message) {
+  return hubRequest(base, `/@${namespace}/${id}/versions/${encodeURIComponent(version)}`, {
+    method: "PATCH",
+    token,
+    body: { deprecationMessage: message },
+  });
 }

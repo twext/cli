@@ -74,9 +74,11 @@ twext publish
 twext yank 1.0.0
 ```
 
-`signup` creates a new account. `login` signs in with your `@namespace` and password. Credentials live in `~/.twext/config.json` (mode `0600`) with `TWEXTHUB_URL`, `TWEXTHUB_TOKEN`, and `TWEXTHUB_NAMESPACE` as environment overrides for automation. The default hub is `https://twexts.sdisk.us/api/v0`; pass `-u` to point at another one. Hubs must be served over HTTPS, except loopback URLs (such as `http://localhost`) used in local development.
+`signup` creates a new account. `login` signs in with your `@namespace` and password. Credentials live in `~/.twext/config.json` (mode `0600`) with `TWEXTHUB_URL`, `TWEXTHUB_TOKEN`, and `TWEXTHUB_NAMESPACE` as environment overrides for automation. The default hub is `https://twexts.sdisk.us/api/v1`; pass `-u` to point at another one. Hubs must be served over HTTPS, except loopback URLs (such as `http://localhost`) used in local development.
 
-`publish` validates and builds, then uploads the manifest and compiled code. When the hub has Terms of Service that have not been accepted yet, `publish` accepts them automatically only when using a stored session token — mapping this command into CI with an automation token is deliberately left to you, so the terms gate can't be silently clicked through. `yank` removes a version. `logout` discards the stored credentials.
+`publish` validates and builds, then uploads the project sources as a gzipped tarball — the hub unpacks it and compiles it itself, and a build that fails there comes back with its log. When the hub has Terms of Service that have not been accepted yet, `publish` accepts them automatically only when using a stored session token — mapping this command into CI with an automation token is deliberately left to you, so the terms gate can't be silently clicked through. `yank` removes a version. `logout` revokes the stored session at the hub, then discards the credentials.
+
+The rest of the registry commands: `checkout` unpacks a published version's source tarball into a directory (`twext checkout myext@1.2.0`, `myext@^1.2` to resolve a range first, defaults to your own namespace), `info` and `search` read the registry, `tag set`/`tag rm` move dist-tags, `deprecate` flags a version (or drops the flag with `--clear`), and `notifications` lists review decisions and broadcasts — rows are marked read only when you pass `--read`. `publish --private` uploads a version that only you and the accounts you grant access can see.
 
 For CI, create a scoped token once:
 
