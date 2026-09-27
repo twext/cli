@@ -110,7 +110,12 @@ async function hubRequest(
   const buffer = Buffer.from(await response.arrayBuffer());
   if (binary && response.ok) return buffer;
   const text = buffer.toString("utf8");
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (err) {
+    if (response.ok) throw err;
+  }
   if (!response.ok) {
     const detail =
       data?.detail ??
@@ -180,18 +185,38 @@ export async function getVersion(base, namespace, id, version, token) {
   });
 }
 
+async function allPages(base, path, token) {
+  const root = new URL(`${base.replace(/\/+$/, "")}/`);
+  let url = new URL(path.replace(/^\/+/, ""), root);
+  const seen = new Set();
+  const data = [];
+  let page;
+  while (url) {
+    if (url.origin !== root.origin || !url.pathname.startsWith(root.pathname)) {
+      throw new HubError("The hub returned a pagination link outside its API.");
+    }
+    if (seen.has(url.href)) throw new HubError("The hub returned a repeated pagination link.");
+    seen.add(url.href);
+    page = await hubRequest(base, url.pathname.slice(root.pathname.length) + url.search, { token });
+    data.push(...(page?.data ?? []));
+    url = page?._links?.next ? new URL(page._links.next, url) : null;
+  }
+  return { ...page, data };
+}
+
 // Highest SemVer first, so the first entry is the one a range resolves to.
-export async function listVersions(base, namespace, id, range, token) {
+export async function listVersions(base, namespace, id, range, token, { all = false } = {}) {
   const query = new URLSearchParams({ limit: "50" });
   if (range) query.set("range", range);
-  return hubRequest(base, `/@${namespace}/${id}/versions?${query}`, { token });
+  const path = `/@${namespace}/${id}/versions?${query}`;
+  return all ? allPages(base, path, token) : hubRequest(base, path, { token });
 }
 
 export async function searchExtensions(base, query, sort, token) {
   const params = new URLSearchParams({ limit: "50" });
   if (query) params.set("query", query);
   if (sort) params.set("sort", sort);
-  return hubRequest(base, `/search?${params}`, { token });
+  return allPages(base, `/search?${params}`, token);
 }
 
 export async function downloadSource(base, token, namespace, id, version) {

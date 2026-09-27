@@ -44,5 +44,11 @@ export function resolveSpec(spec, fallbackNamespace) {
 // A version in a path is a SemVer or a dist-tag; anything with range syntax
 // goes through the versions query instead.
 export function isRange(version) {
-  return /[\^~*<>= ]/.test(version);
+  if (/[\^~*<>= ]/.test(version)) return true;
+  const parts = version.split(".");
+  return (
+    parts.length <= 3 &&
+    parts.every((part) => /^(?:0|[1-9][0-9]*|[xX])$/.test(part)) &&
+    (parts.length < 3 || parts.some((part) => /^[xX]$/.test(part)))
+  );
 }

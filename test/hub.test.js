@@ -8,14 +8,20 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+
+import { Header } from "tar";
+import { checkoutCommand } from "../src/commands/checkout.js";
+import { HubError, getVersion, downloadSource } from "../src/hub.js";
+import { isRange } from "../src/spec.js";
 
 import { createProjectTarball } from "../src/tarball.js";
 
@@ -1013,11 +1019,14 @@ test("checkout unpacks published sources, latest or resolved from a range", asyn
     },
   ]);
   try {
-    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
-    const latest = await runCli(["checkout", "superutilities", "--url", hub.url], {
-      cwd: parent,
-      env,
-    });
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "sess-1" };
+    const latest = await runCli(
+      ["checkout", "superutilities", "--namespace", "acme", "--url", hub.url],
+      {
+        cwd: parent,
+        env,
+      },
+    );
     assert.equal(latest.code, 0, latest.stderr);
     assert.match(latest.stdout, /Checked out @acme\/superutilities@1\.0\.0 into superutilities/);
     assert.ok(existsSync(join(parent, "superutilities", "twext.yml")));
@@ -1026,7 +1035,7 @@ test("checkout unpacks published sources, latest or resolved from a range", asyn
     assert.equal(meta.authorization, "Bearer sess-1");
 
     const ranged = await runCli(
-      ["checkout", "superutilities@^1.0", "from-range", "--url", hub.url],
+      ["checkout", "superutilities@^1.0", "from-range", "--namespace", "acme", "--url", hub.url],
       { cwd: parent, env },
     );
     assert.equal(ranged.code, 0, ranged.stderr);
@@ -1037,10 +1046,13 @@ test("checkout unpacks published sources, latest or resolved from a range", asyn
     assert.equal(sources.length, 2);
     assert.equal(sources[0].authorization, "Bearer sess-1");
 
-    const again = await runCli(["checkout", "superutilities", "--url", hub.url], {
-      cwd: parent,
-      env,
-    });
+    const again = await runCli(
+      ["checkout", "superutilities", "--namespace", "acme", "--url", hub.url],
+      {
+        cwd: parent,
+        env,
+      },
+    );
     assert.equal(again.code, 1);
     assert.match(again.stderr, /exists and is not empty/);
   } finally {
@@ -1124,16 +1136,20 @@ test("notifications lists the mailbox and marks rows read with --read", async ()
     { method: "PATCH", path: "/notifications", reply: { status: 200, body: { updated: 1 } } },
   ]);
   try {
-    const result = await runCli(["notifications", "--read", "--url", hub.url], {
-      env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
-    });
+    const result = await runCli(
+      ["notifications", "--read", "--token", "selected-token", "--url", hub.url],
+      {
+        env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
+      },
+    );
     assert.equal(result.code, 0, result.stderr);
     assert.match(result.stdout, /2 notifications, 1 unread/);
     assert.match(result.stdout, /review\.rejected \(unread\): superutilities@1\.0\.0 was rejected/);
     assert.match(result.stdout, /broadcast: Maintenance tonight/);
     assert.match(result.stdout, /Marked 1 as read/);
     const patch = hub.requests.find((r) => r.method === "PATCH");
-    assert.equal(patch.authorization, "Bearer sess-1");
+    assert.equal(patch.authorization, "Bearer selected-token");
+    assert.ok(hub.requests.every((r) => r.authorization === "Bearer selected-token"));
     assert.deepEqual(patch.body, { ids: [12] });
   } finally {
     cleanup();
@@ -1153,8 +1169,15 @@ test("tag sets, lists and removes dist-tags", async () => {
     { method: "DELETE", path: "/@acme/superutilities/tags/next", reply: { status: 204 } },
   ]);
   try {
-    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
-    const config = ["--config", fixture("basic/twext.yml"), "--url", hub.url];
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "sess-1" };
+    const config = [
+      "--config",
+      fixture("basic/twext.yml"),
+      "--namespace",
+      "acme",
+      "--url",
+      hub.url,
+    ];
 
     const set = await runCli(["tag", "set", "next", "1.2.0", ...config], { env });
     assert.equal(set.code, 0, set.stderr);
@@ -1250,9 +1273,11 @@ test("info prints extension detail, a single version and range matches", async (
     },
   ]);
   try {
-    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "sess-1" };
 
-    const full = await runCli(["info", "superutilities", "--url", hub.url], { env });
+    const full = await runCli(["info", "superutilities", "--namespace", "acme", "--url", hub.url], {
+      env,
+    });
     assert.equal(full.code, 0, full.stderr);
     assert.equal(
       hub.requests[0].authorization,
@@ -1265,18 +1290,26 @@ test("info prints extension detail, a single version and range matches", async (
     assert.match(full.stdout, /0\.9\.0 deprecated — use 1\.0\.0/);
     assert.match(full.stdout, /download https:\/\/hub\.test\/x\.js/);
 
-    const one = await runCli(["info", "superutilities@1.0.0", "--url", hub.url], { env });
+    const one = await runCli(
+      ["info", "superutilities@1.0.0", "--namespace", "acme", "--url", hub.url],
+      { env },
+    );
     assert.equal(one.code, 0, one.stderr);
     assert.match(one.stdout, /status published/);
     assert.match(one.stdout, /digest sha256:abc/);
 
-    const ranged = await runCli(["info", "superutilities@^1.2", "--url", hub.url], { env });
+    const ranged = await runCli(
+      ["info", "superutilities@^1.2", "--namespace", "acme", "--url", hub.url],
+      { env },
+    );
     assert.equal(ranged.code, 0, ranged.stderr);
     assert.match(ranged.stdout, /2 versions of @acme\/superutilities match \^1\.2/);
     const list = hub.requests.find((r) => r.path === "/@acme/superutilities/versions");
     assert.equal(list.query, "limit=50&range=%5E1.2");
 
-    const bad = await runCli(["info", "../../admin", "--url", hub.url], { env });
+    const bad = await runCli(["info", "../../admin", "--namespace", "acme", "--url", hub.url], {
+      env,
+    });
     assert.equal(bad.code, 1);
     assert.match(bad.stderr, /is invalid/);
     assert.equal(
@@ -1366,8 +1399,15 @@ test("deprecate sets and clears a deprecation message", async () => {
     },
   ]);
   try {
-    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
-    const config = ["--config", fixture("basic/twext.yml"), "--url", hub.url];
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "sess-1" };
+    const config = [
+      "--config",
+      fixture("basic/twext.yml"),
+      "--namespace",
+      "acme",
+      "--url",
+      hub.url,
+    ];
 
     const set = await runCli(["deprecate", "1.0.0", "use", "1.1.0", ...config], { env });
     assert.equal(set.code, 0, set.stderr);
@@ -1387,6 +1427,239 @@ test("deprecate sets and clears a deprecation message", async () => {
     assert.equal(notAVersion.code, 1);
     assert.match(notAVersion.stderr, /is not a version/);
     assert.equal(hub.requests.length, 2, "usage errors never reach the hub");
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("X-ranges and partial versions are ranges while exact versions and dist-tags are not", () => {
+  for (const version of ["1", "1.2", "1.x", "1.2.x", "1.2.X", "1.x.x", "x", "*", "^1.2", "~1.2"]) {
+    assert.equal(isRange(version), true, version);
+  }
+  for (const version of [
+    "1.2.3",
+    "1.2.3-beta.1",
+    "1.2.3+build",
+    "latest",
+    "next",
+    "experimental",
+    "v2",
+  ]) {
+    assert.equal(isRange(version), false, version);
+  }
+});
+
+test("info and search collect every page and retain credentials and query parameters", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    ...["/@acme/superutilities/versions", "/search"].map((path) => ({
+      method: "GET",
+      path: `/api/v1${path}`,
+      reply: (request) => {
+        const query = new URLSearchParams(request.query);
+        const page = Number(query.get("page") ?? 1);
+        query.set("page", String(page + 1));
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                name: `Result ${page}`,
+                namespace: "acme",
+                id: "superutilities",
+                version: `1.2.${4 - page}`,
+                status: "published",
+              },
+            ],
+            _links: {
+              next:
+                page === 3 ? null : page === 1 ? `${hub.url}${request.path}?${query}` : `?${query}`,
+            },
+          },
+        };
+      },
+    })),
+  ]);
+  try {
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "selected-token" };
+    for (const range of ["1.2.x", "1.2"]) {
+      const info = await runCli(
+        ["info", `superutilities@${range}`, "-n", "acme", "--url", `${hub.url}/api/v1`],
+        { env },
+      );
+      assert.equal(info.code, 0, info.stderr);
+      assert.match(info.stdout, /3 versions of @acme\/superutilities/);
+      assert.match(info.stdout, /1\.2\.1 published/);
+      assert.ok(
+        hub.requests.slice(-3).every((r) => new URLSearchParams(r.query).get("range") === range),
+      );
+    }
+    const search = await runCli(
+      ["search", "blocks", "--sort", "downloads", "--url", `${hub.url}/api/v1`],
+      { env },
+    );
+    assert.equal(search.code, 0, search.stderr);
+    assert.match(search.stdout, /3 extensions matching "blocks"/);
+    assert.match(search.stdout, /Result 3/);
+    assert.equal(hub.requests.length, 9);
+    assert.ok(hub.requests.every((r) => r.authorization === "Bearer selected-token"));
+    assert.ok(
+      hub.requests.slice(-3).every((r) => new URLSearchParams(r.query).get("sort") === "downloads"),
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("tag list fails on 404 and reports no tags only for a successful empty response", async () => {
+  const { dir, cleanup } = tmpHome();
+  let status = 404;
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/@acme/superutilities/tags",
+      reply: () => ({ status, body: status === 404 ? { detail: "Extension missing" } : {} }),
+    },
+  ]);
+  try {
+    const args = [
+      "tag",
+      "list",
+      "--config",
+      fixture("basic/twext.yml"),
+      "--namespace",
+      "acme",
+      "--url",
+      hub.url,
+    ];
+    const failed = await runCli(args, { env: { HOME: dir } });
+    assert.equal(failed.code, 1);
+    assert.match(failed.stderr, /Extension missing/);
+    assert.doesNotMatch(failed.stdout, /has no tags/);
+    status = 200;
+    const empty = await runCli(args, { env: { HOME: dir } });
+    assert.equal(empty.code, 0, empty.stderr);
+    assert.match(empty.stdout, /has no tags/);
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("non-JSON HTTP failures retain their status, including source downloads", async () => {
+  let status = 502;
+  const body = Buffer.from("<html>Bad Gateway</html>");
+  const hub = await createHub(
+    ["", "/source"].map((suffix) => ({
+      method: "GET",
+      path: `/@acme/example/versions/1.0.0${suffix}`,
+      reply: () => ({ status, body }),
+    })),
+  );
+  try {
+    await assert.rejects(
+      getVersion(hub.url, "acme", "example", "1.0.0"),
+      (err) => err instanceof HubError && err.status === 502 && err.message === "HTTP 502",
+    );
+    await assert.rejects(
+      downloadSource(hub.url, "token", "acme", "example", "1.0.0"),
+      (err) => err instanceof HubError && err.status === 502,
+    );
+    status = 200;
+    await assert.rejects(getVersion(hub.url, "acme", "example", "1.0.0"), SyntaxError);
+    assert.deepEqual(await downloadSource(hub.url, "token", "acme", "example", "1.0.0"), body);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("publish rejects invalid stored namespaces before any hub request", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([]);
+  try {
+    mkdirSync(join(dir, ".twext"));
+    for (const namespace of [123, true, ["acme"], "../admin", "UPPER", "-invalid"]) {
+      writeFileSync(
+        join(dir, ".twext/config.json"),
+        JSON.stringify({ hub: hub.url, token: "session", namespace }),
+      );
+      const result = await runCli(["publish", "--config", fixture("basic/twext.yml")], {
+        env: { HOME: dir },
+      });
+      assert.equal(result.code, 1, JSON.stringify(namespace));
+      assert.match(result.stderr, /Namespace .* is invalid/);
+    }
+    assert.equal(hub.requests.length, 0);
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+function sourceArchive(entries) {
+  const chunks = [];
+  for (const [path, data] of entries) {
+    const header = new Header({ path, size: data.length, type: "File", mode: 0o644 });
+    header.encode();
+    chunks.push(header.block, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  return gzipSync(Buffer.concat([...chunks, Buffer.alloc(1024)]));
+}
+
+test("checkout cleans failed extraction and completes all writes before succeeding on retry", async () => {
+  const { dir, cleanup } = tmpHome();
+  const contents = Buffer.alloc(1024 * 1024, "source\n");
+  let source = sourceArchive([
+    ["src/index.js", contents],
+    ["../escape", Buffer.from("invalid")],
+    ["later/file.js", contents],
+  ]);
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/@acme/example/versions",
+      reply: { status: 200, body: { data: [{ version: "1.2.3" }] } },
+    },
+    {
+      method: "GET",
+      path: "/@acme/example/versions/1.2.3",
+      reply: { status: 200, body: { version: "1.2.3" } },
+    },
+    {
+      method: "GET",
+      path: "/@acme/example/versions/1.2.3/source",
+      reply: () => ({ status: 200, body: source }),
+    },
+  ]);
+  const errors = [];
+  const log = { error: (message) => errors.push(message), success: () => {} };
+  const options = { url: hub.url, namespace: "acme", token: "selected-token" };
+  try {
+    for (const existing of [false, true]) {
+      const destination = join(dir, existing ? "existing" : "new");
+      if (existing) mkdirSync(destination);
+      assert.equal(await checkoutCommand({}, "example@1.2.x", destination, options, log), false);
+      assert.match(errors.at(-1), /contains '\.\.'/);
+      assert.equal(existsSync(destination), existing);
+      if (existing) assert.deepEqual(readdirSync(destination), []);
+      assert.ok(readdirSync(dir).every((name) => !name.startsWith(".twext-checkout-")));
+    }
+    source = sourceArchive([
+      ["src/index.js", contents],
+      ["later/file.js", contents],
+    ]);
+    for (const destination of [join(dir, "new"), join(dir, "existing")]) {
+      assert.equal(
+        await checkoutCommand({}, "example@1.2", destination, options, log),
+        true,
+        errors.at(-1),
+      );
+      assert.deepEqual(readFileSync(join(destination, "src/index.js")), contents);
+      assert.deepEqual(readFileSync(join(destination, "later/file.js")), contents);
+    }
+    assert.ok(readdirSync(dir).every((name) => !name.startsWith(".twext-checkout-")));
   } finally {
     cleanup();
     await hub.close();

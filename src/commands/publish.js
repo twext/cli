@@ -3,6 +3,7 @@ import { compileExtension } from "../compile.js";
 import { validateProject } from "../validate.js";
 import {
   HubError,
+  NAMESPACE_PATTERN,
   acceptTerms,
   publishVersion,
   resolveHubUrl,
@@ -33,6 +34,12 @@ export async function publishCommand(product, configPath, { url, token, private:
   const explicitToken = token ?? process.env.TWEXTHUB_TOKEN;
   if (!namespace) {
     log.error("Not logged in. Run twext login first.");
+    return false;
+  }
+  if (typeof namespace !== "string" || !NAMESPACE_PATTERN.test(namespace)) {
+    log.error(
+      `Namespace "${namespace}" is invalid; expected lower-case letters, digits and hyphens (a-z, 0-9, -).`,
+    );
     return false;
   }
   if (!authToken) {

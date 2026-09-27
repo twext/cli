@@ -41,7 +41,7 @@ async function printVersion(log, hub, token, namespace, id, requested) {
 }
 
 async function printRange(log, hub, token, namespace, id, range) {
-  const page = await listVersions(hub, namespace, id, range, token);
+  const page = await listVersions(hub, namespace, id, range, token, { all: true });
   const matches = page?.data ?? [];
   if (matches.length === 0) {
     log.info(`No version of @${namespace}/${id} matches ${range}.`);
@@ -57,7 +57,7 @@ async function printRange(log, hub, token, namespace, id, range) {
   }
 }
 
-export async function infoCommand(product, spec, { url, token }, log) {
+export async function infoCommand(product, spec, { url, token, namespace }, log) {
   if (!spec) {
     log.error("Usage: twext info <id>[@version]");
     return false;
@@ -65,7 +65,7 @@ export async function infoCommand(product, spec, { url, token }, log) {
   const hub = resolveHubUrl(url);
   let target;
   try {
-    target = resolveSpec(spec, resolveNamespace(undefined, hub));
+    target = resolveSpec(spec, resolveNamespace(namespace, hub));
   } catch (err) {
     log.error(err.message);
     return false;

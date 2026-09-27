@@ -9,7 +9,7 @@ export async function deprecateCommand(
   version,
   messageParts,
   configPath,
-  { url, token, clear },
+  { url, token, clear, namespace: namespaceOverride },
   log,
 ) {
   if (!version || (!clear && messageParts.length === 0)) {
@@ -29,7 +29,7 @@ export async function deprecateCommand(
   }
 
   const hub = resolveHubUrl(url);
-  const namespace = resolveNamespace(undefined, hub);
+  const namespace = resolveNamespace(namespaceOverride, hub);
   const authToken = resolveToken(token, hub);
   if (!namespace) {
     log.error("Not logged in. Run twext login first.");

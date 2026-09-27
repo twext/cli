@@ -1,5 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { extract as extractTar } from "tar";
 import {
   downloadSource,
@@ -13,14 +21,14 @@ import { isRange, resolveSpec } from "../spec.js";
 
 function extractTarball(buffer, cwd) {
   return new Promise((finish, fail) => {
-    const stream = extractTar({ cwd, gzip: true });
-    stream.on("finish", finish);
+    const stream = extractTar({ cwd, gzip: true, strict: true });
+    stream.on("close", finish);
     stream.on("error", fail);
     stream.end(buffer);
   });
 }
 
-export async function checkoutCommand(product, spec, directory, { url, token }, log) {
+export async function checkoutCommand(product, spec, directory, { url, token, namespace }, log) {
   if (!spec) {
     log.error("Usage: twext checkout <id>[@version] [directory]");
     return false;
@@ -28,7 +36,7 @@ export async function checkoutCommand(product, spec, directory, { url, token }, 
 
   const hub = resolveHubUrl(url);
   const authToken = resolveToken(token, hub);
-  const storedNamespace = resolveNamespace(undefined, hub);
+  const storedNamespace = resolveNamespace(namespace, hub);
   if (!authToken || !storedNamespace) {
     log.error("Not logged in. Run twext login first.");
     return false;
@@ -69,8 +77,14 @@ export async function checkoutCommand(product, spec, directory, { url, token }, 
     const meta = await getVersion(hub, target.namespace, target.id, version, authToken);
     version = meta.version;
     const tarball = await downloadSource(hub, authToken, target.namespace, target.id, version);
-    mkdirSync(destination, { recursive: true });
-    await extractTarball(tarball, destination);
+    mkdirSync(dirname(destination), { recursive: true });
+    const staging = mkdtempSync(join(dirname(destination), ".twext-checkout-"));
+    try {
+      await extractTarball(tarball, staging);
+      renameSync(staging, destination);
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
+    }
     log.success(`Checked out @${target.namespace}/${target.id}@${version} into ${shown}`);
     return true;
   } catch (err) {

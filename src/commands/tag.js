@@ -1,5 +1,4 @@
 import {
-  HubError,
   deleteDistTag,
   listDistTags,
   resolveHubUrl,
@@ -12,14 +11,21 @@ import { readExtensionId } from "../validate.js";
 const TAG_PATTERN = /^[a-zA-Z0-9-]{1,30}$/;
 const USAGE = "Usage: twext tag set <name> <version> | twext tag rm <name> | twext tag list";
 
-export async function tagCommand(product, subcommand, args, configPath, { url, token }, log) {
+export async function tagCommand(
+  product,
+  subcommand,
+  args,
+  configPath,
+  { url, token, namespace: namespaceOverride },
+  log,
+) {
   if (subcommand !== "set" && subcommand !== "rm" && subcommand !== "list") {
     log.error(subcommand ? `Unknown tag subcommand "${subcommand}"` : USAGE);
     return false;
   }
 
   const hub = resolveHubUrl(url);
-  const namespace = resolveNamespace(undefined, hub);
+  const namespace = resolveNamespace(namespaceOverride, hub);
   if (!namespace) {
     log.error("Not logged in. Run twext login first.");
     return false;
@@ -38,10 +44,6 @@ export async function tagCommand(product, subcommand, args, configPath, { url, t
     try {
       tags = await listDistTags(hub, namespace, id, authToken);
     } catch (err) {
-      if (err instanceof HubError && err.status === 404) {
-        log.info(`@${namespace}/${id} has no tags.`);
-        return true;
-      }
       log.error(err.message);
       return false;
     }

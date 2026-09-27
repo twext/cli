@@ -1,8 +1,8 @@
 import { listNotifications, markNotificationsRead, resolveHubUrl, resolveToken } from "../hub.js";
 
-export async function notificationsCommand(product, { url, read }, log) {
+export async function notificationsCommand(product, { url, read, token: tokenOverride }, log) {
   const hub = resolveHubUrl(url);
-  const token = resolveToken(undefined, hub);
+  const token = resolveToken(tokenOverride, hub);
   if (!token) {
     log.error("Not logged in. Run twext login first.");
     return false;
