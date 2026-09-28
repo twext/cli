@@ -66,7 +66,9 @@ export async function checkoutCommand(product, spec, directory, { url, token, na
   try {
     let version = target.version ?? "latest";
     if (isRange(version)) {
-      const page = await listVersions(hub, target.namespace, target.id, version, authToken);
+      const page = await listVersions(hub, target.namespace, target.id, version, authToken, {
+        all: true,
+      });
       const match = page?.data?.[0];
       if (!match) {
         log.error(`No version of @${target.namespace}/${target.id} matches ${version}.`);

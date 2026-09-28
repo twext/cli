@@ -982,7 +982,7 @@ test("publish --private asks the hub for a private version", async () => {
   }
 });
 
-test("checkout unpacks published sources, latest or resolved from a range", async () => {
+test("checkout unpacks published sources, latest or resolved from a range on a later page", async () => {
   const { dir, cleanup } = tmpHome();
   const parent = mkdtempSync(join(tmpdir(), "twext-checkout-"));
   const source = await createProjectTarball(
@@ -1005,7 +1005,16 @@ test("checkout unpacks published sources, latest or resolved from a range", asyn
     {
       method: "GET",
       path: "/@acme/superutilities/versions",
-      reply: { status: 200, body: { data: [version("1.0.0")], _links: {} } },
+      reply: (request) => {
+        const next = new URLSearchParams(request.query).has("page");
+        return {
+          status: 200,
+          body: {
+            data: next ? [version("1.0.0")] : [],
+            _links: { next: next ? null : `?${request.query}&page=2` },
+          },
+        };
+      },
     },
     {
       method: "GET",
@@ -1042,6 +1051,9 @@ test("checkout unpacks published sources, latest or resolved from a range", asyn
     assert.match(ranged.stdout, /Checked out @acme\/superutilities@1\.0\.0 into from-range/);
     const list = hub.requests.find((r) => r.path === "/@acme/superutilities/versions");
     assert.equal(list.query, "limit=50&range=%5E1.0");
+    const pages = hub.requests.filter((r) => r.path === "/@acme/superutilities/versions");
+    assert.equal(pages.length, 2);
+    assert.equal(pages[1].query, "limit=50&range=%5E1.0&page=2");
     const sources = hub.requests.filter((r) => r.path.endsWith("/source"));
     assert.equal(sources.length, 2);
     assert.equal(sources[0].authorization, "Bearer sess-1");
