@@ -10,7 +10,13 @@ import { loginCommand } from "./commands/login.js";
 import { signupCommand } from "./commands/signup.js";
 import { logoutCommand } from "./commands/logout.js";
 import { publishCommand } from "./commands/publish.js";
+import { checkoutCommand } from "./commands/checkout.js";
 import { yankCommand } from "./commands/yank.js";
+import { deprecateCommand } from "./commands/deprecate.js";
+import { tagCommand } from "./commands/tag.js";
+import { infoCommand } from "./commands/info.js";
+import { searchCommand } from "./commands/search.js";
+import { notificationsCommand } from "./commands/notifications.js";
 import { tokenCommand } from "./commands/token.js";
 
 const OPTIONS = {
@@ -27,6 +33,10 @@ const OPTIONS = {
   name: { type: "string" },
   scope: { type: "string", multiple: true },
   "expires-in-days": { type: "string" },
+  private: { type: "boolean" },
+  read: { type: "boolean" },
+  sort: { type: "string" },
+  clear: { type: "boolean" },
 };
 
 function helpText(product) {
@@ -35,22 +45,28 @@ function helpText(product) {
 Usage: ${product.command} <command> [options]
 
 Commands:
-  build        Validate and compile the extension (default)
-  validate     Check blocks against the entryPoint handlers
-  init         Scaffold a new project in a directory
-  login        Sign in to a TwextHub hub
-  signup       Create a new account on a TwextHub hub
-  logout       Forget the stored hub credentials
-  publish      Validate, build, and publish to the hub
-  yank         Remove a published version from the hub (e.g. twext yank 1.0.0)
-  token        Create an automation token for CI (e.g. twext token create)
-  help         Show this help
+  build         Validate and compile the extension (default)
+  validate      Check blocks against the entryPoint handlers
+  init          Scaffold a new project in a directory
+  login         Sign in to a TwextHub hub
+  signup        Create a new account on a TwextHub hub
+  logout        Revoke the stored session at the hub and forget the credentials
+  publish       Validate, build, and publish to the hub
+  checkout      Download a published extension's sources (twext checkout myext@1.2.0)
+  yank          Remove a published version from the hub (e.g. twext yank 1.0.0)
+  deprecate     Flag a version, or drop the flag with --clear
+  tag           Manage dist-tags (twext tag set latest 1.2.0)
+  info          Registry info for an extension (twext info myext@^1.2)
+  search        Search published extensions (twext search turbo)
+  notifications List hub notifications (--read marks them read)
+  token         Create an automation token for CI (e.g. twext token create)
+  help          Show this help
 
 Options:
   -c, --config <file>      Path to ${product.defaults.configFilename} (default: ${product.defaults.configFilename})
   -o, --out <file>         Override the output path (build only)
   -f, --force              Overwrite existing files (init only)
-  -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v0)
+  -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v1)
   -n, --namespace <name>   Account namespace (login/signup; login default: stored)
   --password <password>    Account password (login/signup; prompts when omitted)
   --display-name <name>    Account display name (signup only)
@@ -58,6 +74,10 @@ Options:
   --name <name>            Token name (token create only)
   --scope <scope>          Token scope, repeatable (token create only; default: publish)
   --expires-in-days <days> Token lifetime (token create only)
+  --private                Publish a private version (publish only)
+  --read                   Mark the listed notifications as read (notifications only)
+  --sort <key>             Search order: recent, downloads, updated, name (search only)
+  --clear                  Drop a deprecation message (deprecate only)
   -h, --help               Show this help
   -v, --version            Print the version`;
 }
@@ -95,11 +115,41 @@ async function main(args) {
     case "signup":
       return (await signupCommand(product, values, log)) ? 0 : 1;
     case "logout":
-      return logoutCommand(product, log) ? 0 : 1;
+      return (await logoutCommand(product, log)) ? 0 : 1;
     case "publish":
       return (await publishCommand(product, configPath, values, log)) ? 0 : 1;
+    case "checkout":
+      return (await checkoutCommand(product, positionals[1], positionals[2], values, log)) ? 0 : 1;
     case "yank":
       return (await yankCommand(product, positionals[1], configPath, values, log)) ? 0 : 1;
+    case "deprecate":
+      return (await deprecateCommand(
+        product,
+        positionals[1],
+        positionals.slice(2),
+        configPath,
+        values,
+        log,
+      ))
+        ? 0
+        : 1;
+    case "tag":
+      return (await tagCommand(
+        product,
+        positionals[1],
+        positionals.slice(2),
+        configPath,
+        values,
+        log,
+      ))
+        ? 0
+        : 1;
+    case "info":
+      return (await infoCommand(product, positionals[1], values, log)) ? 0 : 1;
+    case "search":
+      return (await searchCommand(product, positionals.slice(1), values, log)) ? 0 : 1;
+    case "notifications":
+      return (await notificationsCommand(product, values, log)) ? 0 : 1;
     case "token":
       return (await tokenCommand(product, positionals[1], values, log)) ? 0 : 1;
     default:
