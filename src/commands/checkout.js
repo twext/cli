@@ -81,7 +81,22 @@ export async function checkoutCommand(product, spec, directory, { url, token, na
     const staging = mkdtempSync(join(dirname(destination), ".twext-checkout-"));
     try {
       await extractTarball(tarball, staging);
-      renameSync(staging, destination);
+      if (existsSync(destination)) {
+        const moved = [];
+        try {
+          for (const entry of readdirSync(staging)) {
+            renameSync(join(staging, entry), join(destination, entry));
+            moved.push(entry);
+          }
+        } catch (err) {
+          for (const entry of moved) {
+            rmSync(join(destination, entry), { recursive: true, force: true });
+          }
+          throw err;
+        }
+      } else {
+        renameSync(staging, destination);
+      }
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }
