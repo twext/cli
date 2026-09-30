@@ -22,7 +22,63 @@ export const ARGUMENT_TYPES = {
   color: "Scratch.ArgumentType.COLOR",
   matrix: "Scratch.ArgumentType.MATRIX",
   note: "Scratch.ArgumentType.NOTE",
+  image: "Scratch.ArgumentType.IMAGE",
+  costume: "Scratch.ArgumentType.COSTUME",
+  sound: "Scratch.ArgumentType.SOUND",
 };
+
+// TurboWarp's getInfo() carries more fields than Twext structures itself. The
+// compiler copies these through verbatim and validate.js is what keeps the list
+// honest, so a key that reaches the output is a key that was type-checked.
+const INFO_PASSTHROUGH = ["docsURI", "menuIconURI", "blockIconURI"];
+
+const BLOCK_PASSTHROUGH = [
+  "hideFromPalette",
+  "blockIconURI",
+  "filter",
+  "isDynamic",
+  "isTerminal",
+  "disableMonitor",
+  "isEdgeActivated",
+  "shouldRestartExistingThreads",
+  "branchCount",
+];
+
+const ARGUMENT_PASSTHROUGH = ["dataURI", "flipRTL"];
+
+// The complete set of keys each manifest shape may carry. validate.js rejects
+// everything else, so these lists are the contract that keeps compilation from
+// silently dropping fields.
+export const EXTENSION_KEYS = new Set([
+  "id",
+  "name",
+  "className",
+  "color1",
+  "color2",
+  "color3",
+  "menus",
+  ...INFO_PASSTHROUGH,
+]);
+
+export const BLOCK_KEYS = new Set([
+  "opcode",
+  "func",
+  "blockType",
+  "text",
+  "arguments",
+  ...BLOCK_PASSTHROUGH,
+]);
+
+// Labels are inert text. TurboWarp warns about an opcode on one, and there is no
+// handler to hang executable-block fields off.
+export const LABEL_BLOCK_KEYS = new Set(["blockType", "text"]);
+
+// Buttons dispatch straight to a method rather than to a block handler.
+export const BUTTON_BLOCK_KEYS = new Set(["blockType", "text", "filter", "func"]);
+
+export const ARGUMENT_KEYS = new Set(["type", "defaultValue", "menu", ...ARGUMENT_PASSTHROUGH]);
+
+export const MENU_KEYS = new Set(["items", "acceptReporters"]);
 
 const INDENT = "  ";
 
@@ -220,6 +276,13 @@ export function pascalCase(text) {
     .replace(/^[a-z]/, (c) => c.toUpperCase());
 }
 
+function copyPassthrough(target, source, keys) {
+  for (const key of keys) {
+    if (source[key] !== undefined) target[key] = source[key];
+  }
+  return target;
+}
+
 function buildBlock(block) {
   if (typeof block === "string") return block;
   const type =
@@ -229,10 +292,21 @@ function buildBlock(block) {
         ? BLOCK_TYPES[block.blockType]
         : undefined;
   if (!type) throw new Error(`Unknown blockType "${block.blockType}" for block "${block.opcode}"`);
-  const isLabel = type === BLOCK_TYPES.label;
-  const out = isLabel
-    ? { blockType: enumCode(type), text: block.text ?? "" }
-    : { opcode: block.opcode, blockType: enumCode(type), text: block.text ?? block.opcode };
+  if (type === BLOCK_TYPES.label) {
+    return { blockType: enumCode(type), text: block.text ?? "" };
+  }
+  // A button has no opcode; it calls the method named by `func`.
+  if (type === BLOCK_TYPES.button) {
+    const button = { blockType: enumCode(type), text: block.text ?? "" };
+    copyPassthrough(button, block, ["func", "filter"]);
+    return button;
+  }
+  const out = {
+    opcode: block.opcode,
+    blockType: enumCode(type),
+    text: block.text ?? block.opcode,
+  };
+  copyPassthrough(out, block, ["func", ...BLOCK_PASSTHROUGH]);
   if (block.arguments && typeof block.arguments === "object") {
     const argumentNames = Object.keys(block.arguments);
     if (argumentNames.length > 0) {
@@ -252,31 +326,68 @@ function buildArgument(argument) {
   const out = { type: enumCode(type) };
   if (argument.defaultValue !== undefined) out.defaultValue = argument.defaultValue;
   if (argument.menu !== undefined) out.menu = argument.menu;
+  copyPassthrough(out, argument, ARGUMENT_PASSTHROUGH);
   return out;
 }
 
 function buildMenus(menus) {
   const out = {};
   for (const [name, menu] of Object.entries(menus)) {
-    out[name] = Array.isArray(menu) ? { items: menu } : { items: menu.items ?? [] };
-    if (!Array.isArray(menu) && menu.acceptReporters !== undefined) {
+    // A bare string names a method that supplies the items at runtime.
+    if (typeof menu === "string") {
+      out[name] = { items: menu };
+      continue;
+    }
+    if (Array.isArray(menu)) {
+      out[name] = { items: menu };
+      continue;
+    }
+    out[name] = { items: menu.items ?? [] };
+    if (menu.acceptReporters !== undefined) {
       out[name].acceptReporters = menu.acceptReporters;
     }
   }
   return out;
 }
 
-function renderMethod(opcode, handler) {
+function renderMethod(name, handler, descriptor) {
   const parsed = parseFunctionSource(handler.toString());
   if (!parsed) {
-    throw new Error(`Could not parse handler function for block "${opcode}"`);
+    throw new Error(`Could not parse handler function for ${descriptor}`);
   }
-  const name = methodName(opcode);
-  const head = `    ${parsed.async ? "async " : ""}${name}(${parsed.params}) {`;
+  const head = `    ${parsed.async ? "async " : ""}${methodName(name)}(${parsed.params}) {`;
   const source = parsed.expressionBody ? `return ${parsed.body};` : parsed.body;
   const body = dedent(source).trim();
   if (!body) return `${head}\n    }`;
   return `${head}\n${indentCode(body, 3)}\n    }`;
+}
+
+// Every method the generated class ends up with, keyed by its class method name.
+// Block handlers are looked up by opcode but named by `func` when one is given,
+// and the optional `methods` export supplies shared helpers plus the functions
+// that dynamic menus and buttons dispatch to.
+function collectMethods(config, mod) {
+  const methods = new Map();
+  for (const [name, fn] of Object.entries(mod.methods ?? {})) {
+    if (typeof fn === "function") methods.set(name, { fn, descriptor: `method "${name}"` });
+  }
+  for (const block of config.blocks) {
+    if (typeof block !== "object" || block === null) continue;
+    if (block.blockType === "label") continue;
+    if (typeof block.opcode !== "string") continue;
+    const fn = mod.blocks[block.opcode];
+    if (typeof fn !== "function") continue;
+    const name = block.func ?? block.opcode;
+    if (!methods.has(name)) methods.set(name, { fn, descriptor: `block "${block.opcode}"` });
+  }
+  return methods;
+}
+
+// The names that actually end up on the generated class. A button or a dynamic
+// menu can only dispatch to one of these, which is a stricter question than "is
+// there a function under this name in the module".
+export function emittedMethodNames(config, mod) {
+  return new Set(collectMethods(config, mod).keys());
 }
 
 export function compileExtension(project, product) {
@@ -294,6 +405,7 @@ export function compileExtension(project, product) {
     ...(ext.color2 !== undefined && { color2: ext.color2 }),
     ...(ext.color3 !== undefined && { color3: ext.color3 }),
     ...(ext.menus !== undefined && { menus: buildMenus(ext.menus) }),
+    ...copyPassthrough({}, ext, INFO_PASSTHROUGH),
     blocks: config.blocks.map(buildBlock),
   };
 
@@ -303,11 +415,8 @@ export function compileExtension(project, product) {
   lines.push("", `  class ${className} {`, "    getInfo() {", "      return {");
   lines.push(...emitFields(info, 4));
   lines.push("      };", "    }");
-  const nonLabels = config.blocks.filter(
-    (block) => typeof block !== "string" && block.blockType !== "label",
-  );
-  const methods = nonLabels
-    .map((block) => renderMethod(block.opcode, mod.blocks[block.opcode]))
+  const methods = [...collectMethods(config, mod)]
+    .map(([name, { fn, descriptor }]) => renderMethod(name, fn, descriptor))
     .join("\n\n");
   lines.push(
     "",

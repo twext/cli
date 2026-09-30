@@ -28,7 +28,7 @@ Twext is developed like pretty much every other CLI out there. If you make chang
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [📦 Getting Set Up](#-getting-set-up)
-- [🗂️ Project Layout](#️-project-layout)
+- [🗂️ Project Layout](#-project-layout)
 - [🧪 Tests](#-tests)
 - [🤖 CI and Releases](#-ci-and-releases)
 - [📖 Working on the Docs](#-working-on-the-docs)

@@ -1,6 +1,6 @@
 # 🧱 Writing Blocks
 
-The `entryPoint` module in `twext.yml` holds the code. It exports a `blocks` map that pairs each opcode in the manifest with a handler function, and it can export a `setup` function that runs once when the extension loads.
+The `entryPoint` module in `twext.yml` holds the code. It exports a `blocks` map that pairs each opcode in the manifest with a handler function, a `methods` map for anything else the extension publishes, and a `setup` function that runs once when the extension loads.
 
 Twext doesn't bundle the module graph. It reads each handler's source, moves the bodies into a generated extension class, and writes one file. Knowing that explains most of the rules below.
 
@@ -11,6 +11,7 @@ Twext doesn't bundle the module graph. It reads each handler's source, moves the
 
 - [📥 The Entry Point](#-the-entry-point)
 - [🧩 Handlers](#-handlers)
+- [🧰 Methods](#-methods)
 - [🔧 Setup](#-setup)
 - [🌍 What a Handler Can See](#-what-a-handler-can-see)
 - [📤 What Gets Written](#-what-gets-written)
@@ -37,6 +38,8 @@ export function setup() {
 `blocks` is required. It's an object whose keys are opcodes and whose values are the handlers for those blocks, so every opcode in `twext.yml` needs an entry here and every entry here needs an opcode in the manifest. Twext won't guess: a missing handler is a build error, and a handler with no block is a warning.
 
 `setup` is optional and takes no arguments. See [Setup](#-setup).
+
+`methods` is optional and holds everything the manifest points at that isn't a block: dynamic menu functions and button targets, plus any shared helpers you want on the extension object. See [Methods](#-methods).
 
 The key in the map is what matters, not the name of the export. This compiles a `sayHello` method:
 
@@ -74,7 +77,38 @@ export function sayHello({ WHO }) {
 
 The build fails with a free-variable error naming `logger`. Anything a handler needs at runtime has to be declared in `setup`, which is the next section.
 
-Twext can only re-print a handful of function shapes: `function name() {}`, `function () {}`, the method shorthand `name() {}`, and arrows with a block or expression body, each optionally `async`. A generator can't be re-printed, and neither can a function whose source was rewritten on the way in, so the build stops with `Could not parse handler function for block "<opcode>"`. Keep handlers as plain functions in your own modules.
+Twext can only re-print a handful of function shapes: `function name() {}`, `function () {}`, the method shorthand `name() {}`, and arrows with a block or expression body, each optionally `async`. A generator can't be re-printed, and neither can a function whose source was rewritten on the way in, so the build stops with `Could not parse handler function for block "<opcode>"`, or `... for method "<name>"` for an entry in `methods`. Keep handlers and methods as plain functions in your own modules.
+
+## 🧰 Methods
+
+`methods` is a second export, keyed by the name the manifest uses to call each function. Twext publishes those on the generated extension class next to the block handlers:
+
+```mjs
+export const methods = {
+  layerNames() {
+    return ["Background", "Foreground"];
+  },
+  RESET_ALL() {
+    state.resets += 1;
+  },
+};
+```
+
+Two manifest features need it. A [dynamic menu](./configuration.md#dynamic-menus) names a method to produce its items, and a [button](./configuration.md#buttons) names a method to run when it's clicked:
+
+```yaml
+extension:
+  menus:
+    layers: layerNames
+blocks:
+  - blockType: button
+    text: "reset everything"
+    func: RESET_ALL
+```
+
+Nothing in `methods` may be named `constructor` or `getInfo`, and the same applies to an opcode and to a block's `func`. A block that sets `func` is published under that name instead of its opcode, which is how you keep an old opcode in project JSON while renaming the code behind it.
+
+Methods follow the same rules as handlers: they're re-printed from source rather than bundled, and they can only reference what [Setup](#-setup) declares and the runtime globals. Shared helpers that handlers call belong here or in `setup`.
 
 ## 🔧 Setup
 
@@ -124,6 +158,8 @@ A handler referencing a name that isn't in `setup`, isn't a global, and isn't `S
 - `Scratch`, the TurboWarp global the compiled file is wrapped around.
 - The JavaScript built-ins and browser globals TurboWarp runs in — `console`, `Math`, `JSON`, `setTimeout`, `fetch`, `TextEncoder`, and the rest of the standard library.
 - Its own parameters, and anything they bring in.
+
+`methods` see the same list.
 
 Imports and module-level bindings in your own files are not in that list, because the modules they live in aren't in the compiled output.
 

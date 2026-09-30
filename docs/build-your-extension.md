@@ -12,9 +12,9 @@ For the sake of this tutorial, we won't be using `twext init`. But, the init scr
 - [🧑‍💻 Steps](#-steps)
 - [🔤 Adding an Argument](#-adding-an-argument)
 - [📋 Adding a Menu](#-adding-a-menu)
-- [🗂️ Organizing the Palette](#️-organizing-the-palette)
+- [🗂️ Organizing the Palette](#-organizing-the-palette)
 - [🧬 Sharing State Between Blocks](#-sharing-state-between-blocks)
-- [⏭️ Where to Go From Here](#️-where-to-go-from-here)
+- [⏭️ Where to Go From Here](#-where-to-go-from-here)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
