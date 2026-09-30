@@ -12,9 +12,9 @@ For the sake of this tutorial, we won't be using `twext init`. But, the init scr
 - [🧑‍💻 Steps](#-steps)
 - [🔤 Adding an Argument](#-adding-an-argument)
 - [📋 Adding a Menu](#-adding-a-menu)
-- [🗂️ Organizing the Palette](#-organizing-the-palette)
+- [🗂️ Organizing the Palette](#️-organizing-the-palette)
 - [🧬 Sharing State Between Blocks](#-sharing-state-between-blocks)
-- [⏭️ Where to Go From Here](#-where-to-go-from-here)
+- [⏭️ Where to Go From Here](#️-where-to-go-from-here)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -105,8 +105,8 @@ blocks:
 
 ```mjs
 // src/blocks/hello.js
-export function greet({ WHO }, util) {
-  util.ioSay("Hello, " + WHO + "!");
+export function greet({ WHO }) {
+  console.log("Hello, " + WHO + "!");
 }
 ```
 
@@ -141,13 +141,14 @@ blocks:
 The handler gets whichever item the user picked as a string, so a plain list of strings is usually all you need. When the text on screen shouldn't be the value your code receives, use the `text` and `value` form:
 
 ```yaml
-menus:
-  speed:
-    items:
-      - text: "Walk"
-        value: "0.5"
-      - text: "Run"
-        value: "1.5"
+extension:
+  menus:
+    speed:
+      items:
+        - text: "Walk"
+          value: "0.5"
+        - text: "Run"
+          value: "1.5"
 ```
 
 ## 🗂️ Organizing the Palette

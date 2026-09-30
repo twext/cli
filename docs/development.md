@@ -20,7 +20,7 @@ Twext is developed like pretty much every other CLI out there. If you make chang
    npm run test
    ```
 
-`npm run check` runs all three in the order CI does, and is the one to run before you push.
+`npm run check` runs `lint`, `format:check`, and `test` sequentially and is the one to run before you push. It checks formatting without rewriting files; `npm run format` rewrites files.
 
 ## 📕 Table of Contents
 
@@ -28,7 +28,7 @@ Twext is developed like pretty much every other CLI out there. If you make chang
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [📦 Getting Set Up](#-getting-set-up)
-- [🗂️ Project Layout](#-project-layout)
+- [🗂️ Project Layout](#️-project-layout)
 - [🧪 Tests](#-tests)
 - [🤖 CI and Releases](#-ci-and-releases)
 - [📖 Working on the Docs](#-working-on-the-docs)
@@ -87,7 +87,7 @@ node --test test/compile.test.js
 
 ## 🤖 CI and Releases
 
-CI runs on every push and pull request to `main`, on Node.js 24, in three jobs: `lint`, `format:check`, and `test`. The test job waits for the other two.
+CI runs on every push and pull request to `main`, on Node.js 24, in three jobs: `lint`, `format`, and `test`. The `lint` and `format` jobs run in parallel; `test` waits for both. The `format` job runs `npm run format:check`.
 
 Releases are cut by pushing a tag. The CD workflow matches `v*`, re-runs lint, format, and test, then publishes to npm with `--provenance --access public`. The `files` list in `package.json` decides what goes in the tarball: `src`, `schema`, `types`, and `product.yml`.
 

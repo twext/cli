@@ -1,45 +1,45 @@
-# 📦 Twext
+# Twext
 
 [![CI](https://github.com/twext/twext/actions/workflows/ci.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/ci.yml) [![CD](https://github.com/twext/twext/actions/workflows/cd.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/cd.yml)
 
 > _Build custom TurboWarp extensions with JavaScript modules (ESM)._
 
-## 📕 Table of Contents
+## Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [🌟 Highlights](#-highlights)
-- [ℹ️ Overview](#-overview)
-  - [✍️ Authors](#-authors)
-- [🚀 Usage](#-usage)
-- [⬇️ Installation](#-installation)
+- [Highlights](#highlights)
+- [Overview](#overview)
+  - [Authors](#authors)
+- [Usage](#usage)
+- [Installation](#installation)
   - [Prerequisites](#prerequisites)
   - [Steps](#steps)
-- [💭 Feedback and Contributing](#-feedback-and-contributing)
-- [📚 Also See...](#-also-see)
+- [Feedback and Contributing](#feedback-and-contributing)
+- [Also See...](#also-see)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## 🌟 Highlights
+## Highlights
 
-- **Beautiful Output:** Built output looks almost identical to extensions that were not built with Twext.
-- **Validator:** The CLI can also validate your extension, checking for inconsistencies or errors in your configuration.
-- **Registry-backed:** You can publish to a registry of extensions that were also created with Twext using the CLI. [Read more about TwextHub.](./docs/twexthub.md)
+- Built output looks almost identical to extensions that were not built with Twext.
+- The CLI can also validate your extension, checking for inconsistencies or errors in your configuration.
+- You can publish to a registry of extensions that were also created with Twext using the CLI. [Read more about TwextHub.](./docs/twexthub.md)
 
-## ℹ️ Overview
+## Overview
 
 Large JavaScript projects are usually multiple files. TurboWarp extensions should be the same, but they aren't.
 
 Twext is a zero-config custom TurboWarp extension build tool meant to solve the problem that _large extensions get harder to build the larger they are_. With Twext, you can use ESM syntax to build an extension, instead of coding one in one file.
 
-### ✍️ Authors
+### Authors
 
 > **AI Disclosure:** AI was used in the development of Twext.
 
-- **Main Developer:** [@kamixfox](https://github.com/kamixfox)
+- [@kamixfox](https://github.com/kamixfox)
 
-## 🚀 Usage
+## Usage
 
 1. Install Twext using `npm` (_from source_):
 
@@ -61,7 +61,7 @@ Twext is a zero-config custom TurboWarp extension build tool meant to solve the 
 
 To learn how to use Twext _and_ build a functioning extension at the same time, see [Build Your Extension.](./docs/build-your-extension.md)
 
-## ⬇️ Installation
+## Installation
 
 ### Prerequisites
 
@@ -78,13 +78,13 @@ Install with `npm`:
 npm install @twext/twext
 ```
 
-## 💭 Feedback and Contributing
+## Feedback and Contributing
 
 Discussions are turned off here, just open an issue if you have a question, or if you find a bug/a new feature to add.
 
-If you want to contribute to this project, feel free! People like you make smaller projects like this thrive. See the [Development Guide.](./docs/development.md)
+If you want to contribute to this project, feel free! See the [Development Guide.](./docs/development.md)
 
-## 📚 Also See...
+## Also See...
 
 - [Documentation](./docs/index.md)
 - [CLI Reference](./docs/cli.md)

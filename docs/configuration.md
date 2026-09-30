@@ -86,7 +86,7 @@ Only `entryPoint`, `extension`, and `blocks` are required. Anything else in the 
 
 - `id`: Stable ID TurboWarp uses to identify the extension. Required, 1 to 64 lower-case letters and digits (`a-z`, `0-9`) — the same rule TwextHub enforces. It can't be changed without breaking existing projects.
 - `name`: Name shown in the block palette. Falls back to the project `name`, then to the `id`.
-- `className`: Name of the generated extension class. Must be a valid JavaScript identifier and not a reserved word. Twext derives a PascalCase name from the `id` when it's missing, and prefixes it with an underscore when the derived name isn't a valid identifier.
+- `className`: Name of the generated extension class. Must be a valid JavaScript identifier and not a reserved word. When it's missing, Twext appends `Extension` to the PascalCase `id` and prefixes `_` if the resulting name starts with a digit.
 - `color1`: Primary block color, as `#rrggbb`. Defaults to `#0070F3`.
 - `color2`: Secondary block color. Left out of the output when it isn't set.
 - `color3`: Tertiary block color. Left out of the output when it isn't set.
