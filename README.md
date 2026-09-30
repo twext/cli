@@ -9,14 +9,14 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [🌟 Highlights](#-highlights)
-- [ℹ️ Overview](#-overview)
-  - [✍️ Authors](#-authors)
-- [🚀 Usage](#-usage)
-- [⬇️ Installation](#-installation)
+- [Highlights](#-highlights)
+- [Overview](#-overview)
+  - [Authors](#-authors)
+- [Usage](#-usage)
+- [Installation](#-installation)
   - [Prerequisites](#prerequisites)
   - [Steps](#steps)
-- [💭 Feedback and Contributing](#-feedback-and-contributing)
+- [Feedback and Contributing](#-feedback-and-contributing)
 - [Also See...](#also-see)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->

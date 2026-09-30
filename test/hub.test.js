@@ -1733,7 +1733,7 @@ test("org create, update and delete act on the organization's own namespace", as
         "--url",
         hub.url,
       ],
-      { env: { HOME: dir } },
+      { env: { HOME: dir, TWEXTHUB_NAMESPACE: "other-account" } },
     );
     assert.equal(created.code, 0, created.stderr);
     assert.match(created.stdout, /Created organization @acme/);
@@ -1749,6 +1749,7 @@ test("org create, update and delete act on the organization's own namespace", as
     const acceptance = hub.requests.find(
       (r) => r.method === "PATCH" && r.path === "/users/kamixfox",
     );
+    assert.equal(acceptance.authorization, "Bearer sess-1");
     assert.deepEqual(
       acceptance.body,
       { termsAcceptedVersion: 4 },

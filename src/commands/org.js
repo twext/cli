@@ -10,9 +10,9 @@ import {
   listOrganizationExtensions,
   listOrganizationOwners,
   listOrganizations,
+  loadCredentials,
   removeOrganizationOwner,
   resolveHubUrl,
-  resolveNamespace,
   resolveToken,
   updateOrganization,
 } from "../hub.js";
@@ -80,7 +80,8 @@ async function createOrganizationWithTerms(hub, token, body, values, log) {
     await create();
   } catch (err) {
     if (!(err instanceof HubError && err.status === 403 && /terms/i.test(err.message))) throw err;
-    const account = resolveNamespace(undefined, hub);
+    const credentials = loadCredentials();
+    const account = credentials.token === token ? credentials.namespace : undefined;
     if ((values.token ?? process.env.TWEXTHUB_TOKEN) || !account) {
       throw new Error(
         `${err.message} Accept the terms with a session (twext login) before creating it again.`,
