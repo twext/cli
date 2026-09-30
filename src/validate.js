@@ -216,6 +216,7 @@ export async function validateProject(configPath) {
     errors.push('twext.yml must define at least one entry in "blocks"');
   } else {
     const declared = new Set();
+    const published = new Set();
     for (const block of config.blocks) {
       if (typeof block === "string") {
         if (block !== "---") {
@@ -270,11 +271,16 @@ export async function validateProject(configPath) {
             errors.push(`Func "${block.func}" conflicts with a generated extension method`);
           }
         }
+        const method = block.func ?? block.opcode;
+        if (published.has(method)) {
+          errors.push(`Duplicate published method "${method}" in blocks`);
+        }
+        published.add(method);
         // The class carries one method per name, so a block renaming itself onto
         // a shared method would silently lose its handler.
-        if (mod.methods && hasOwn(mod.methods, block.func ?? block.opcode)) {
+        if (mod.methods && hasOwn(mod.methods, method)) {
           errors.push(
-            `Block "${name}" publishes method "${block.func ?? block.opcode}", which is already in the "methods" export`,
+            `Block "${name}" publishes method "${method}", which is already in the "methods" export`,
           );
         }
       }

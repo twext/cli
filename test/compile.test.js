@@ -1100,6 +1100,72 @@ export const methods = { helper() { return 2; } };
   );
 });
 
+test("validate rejects blocks that publish the same method name", async (t) => {
+  const cases = [
+    { name: "two func values", firstFunc: "shared", secondFunc: "shared", method: "shared" },
+    { name: "func before opcode", firstFunc: "two", method: "two" },
+    { name: "opcode before func", secondFunc: "one", method: "one" },
+  ];
+  for (const { name, firstFunc, secondFunc, method } of cases) {
+    await t.test(name, async () => {
+      const result = await validateTempProject(
+        `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: collide
+blocks:
+  - opcode: one
+    blockType: reporter
+${firstFunc ? `    func: ${firstFunc}\n` : ""}  - opcode: two
+    blockType: reporter
+${secondFunc ? `    func: ${secondFunc}\n` : ""}`,
+        "export const blocks = { one() { return 1; }, two() { return 2; } };\n",
+      );
+      assert.equal(result.ok, false);
+      assert.deepEqual(result.errors, [`Duplicate published method "${method}" in blocks`]);
+    });
+  }
+});
+
+test("validate rejects duplicate opcodes even with distinct func values", async () => {
+  const result = await validateTempProject(
+    `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: duplicate
+blocks:
+  - opcode: one
+    func: first
+    blockType: reporter
+  - opcode: one
+    func: second
+    blockType: reporter
+`,
+    "export const blocks = { one() { return 1; } };\n",
+  );
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.errors, ['Duplicate opcode "one" in blocks']);
+});
+
+test("validate accepts distinct published names when func reuses a renamed opcode", async () => {
+  const result = await validateTempProject(
+    `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: renamed
+blocks:
+  - opcode: one
+    func: renamedOne
+    blockType: reporter
+  - opcode: two
+    func: one
+    blockType: reporter
+`,
+    "export const blocks = { one() { return 1; }, two() { return 2; } };\n",
+  );
+  assert.equal(result.ok, true, result.errors.join("; "));
+});
+
 test("a button can only name a method that is actually compiled", async () => {
   const result = await validateTempProject(
     `entryPoint: "src/index.js"
