@@ -1,150 +1,92 @@
-<a href="https://github.com/twext/twext">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/whiteLogo.svg" />
-    <img src="./assets/regularLogo.svg" height="40" alt="Twext project logo" />
-  </picture>
-</a>
+# 📦 Twext
 
-# Twext
+[![CI](https://github.com/twext/twext/actions/workflows/ci.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/ci.yml) [![CD](https://github.com/twext/twext/actions/workflows/cd.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/cd.yml)
 
-> A modular, zero-config Node.js toolchain for authoring, validating, and compiling multi-file TurboWarp extensions with YAML manifests
+> _Build custom TurboWarp extensions with JavaScript modules (ESM)._
 
-## Table of Contents
+## 📕 Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Highlights](#highlights)
-- [Overview](#overview)
-  - [Authors](#authors)
-- [Usage](#usage)
-- [Installation](#installation)
-- [Editor setup](#editor-setup)
-- [Feedback and Contributing](#feedback-and-contributing)
+- [🌟 Highlights](#-highlights)
+- [ℹ️ Overview](#-overview)
+  - [✍️ Authors](#-authors)
+- [🚀 Usage](#-usage)
+- [⬇️ Installation](#-installation)
+  - [Prerequisites](#prerequisites)
+  - [Steps](#steps)
+- [💭 Feedback and Contributing](#-feedback-and-contributing)
+- [📚 Also See...](#-also-see)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Highlights
+## 🌟 Highlights
 
-- Turn several JavaScript files into a TurboWarp extension. Made for larger projects that would need a multi-file structure.
-- Declare your extension's metadata, block signatures, and arguments in a single `twext.yml` manifest
-- Keep every block handler in its own ES module; `twext build` compiles them into one self-contained extension script
-- Static analysis catches problems before you even run the extension — missing exports, unknown block types and argument types, and references to names that won't exist at runtime
-- Zero config: `init` scaffolds a working project, `build` validates then compiles, `validate` checks blocks against your handlers
+- **Beautiful Output:** Built output looks almost identical to extensions that were not built with Twext.
+- **Validator:** The CLI can also validate your extension, checking for inconsistencies or errors in your configuration.
+- **Registry-backed:** You can publish to a registry of extensions that were also created with Twext using the CLI. [Read more about TwextHub.](./docs/twexthub.md)
 
-## Overview
+## ℹ️ Overview
 
-TurboWarp extensions are written as a single JavaScript file: one script that registers a class with `getInfo()` block definitions and a method per opcode. Kept in one file, that gets hard to read once an extension has more than a few blocks.
+Large JavaScript projects are usually multiple files. TurboWarp extensions should be the same, but they aren't.
 
-Twext takes the other path. You keep the block definitions and metadata in a YAML manifest, and each block's logic in its own ES module.
+Twext is a zero-config custom TurboWarp extension build tool meant to solve the problem that _large extensions get harder to build the larger they are_. With Twext, you can use ESM syntax to build an extension, instead of coding one in one file.
 
-Validation is not just schema checking. Twext parses each handler and the `setup` function and walks their free variables, so a handler that references an undeclared helper or a typo'd argument name is a build error, not a runtime mystery inside the extension.
+### ✍️ Authors
 
-### Authors
+> **AI Disclosure:** AI was used in the development of Twext.
 
-Twext is maintained by the [Twext Team](https://github.com/twext).
+- **Main Developer:** [@kamixfox](https://github.com/kamixfox)
 
-## Usage
+## 🚀 Usage
 
-Scaffold a new project:
+1. Install Twext using `npm` (_from source_):
 
-```bash
-twext init
-```
+   ```bash
+   npm install
+   ```
 
-This writes a minimal `twext.yml`, `src/index.js`, and a sample `src/blocks/hello.js`. From there, `build` validates and compiles:
+2. Scaffold your project:
 
-```bash
-twext build
-# writes dist/extension.js
-```
+   ```bash
+   npx twext init
+   ```
 
-Check a project without building:
+3. Build the scaffolded extension:
 
-```bash
-twext validate
-```
+   ```bash
+   npx twext # or twext build
+   ```
 
-Publish and manage a TwextHub hub from the CLI:
+To learn how to use Twext _and_ build a functioning extension at the same time, see [Build Your Extension.](./docs/build-your-extension.md)
 
-```bash
-twext signup
-twext login
-twext publish
-twext yank 1.0.0
-```
+## ⬇️ Installation
 
-`signup` creates a new account. `login` signs in with your `@namespace` and password. Credentials live in `~/.twext/config.json` (mode `0600`) with `TWEXTHUB_URL`, `TWEXTHUB_TOKEN`, and `TWEXTHUB_NAMESPACE` as environment overrides for automation. The default hub is `https://twexts.sdisk.us/api/v1`; pass `-u` to point at another one. Hubs must be served over HTTPS, except loopback URLs (such as `http://localhost`) used in local development.
+### Prerequisites
 
-`publish` validates and builds, then uploads the project sources as a gzipped tarball — the hub unpacks it and compiles it itself, and a build that fails there comes back with its log. When the hub has Terms of Service that have not been accepted yet, `publish` accepts them automatically only when using a stored session token — mapping this command into CI with an automation token is deliberately left to you, so the terms gate can't be silently clicked through. `yank` removes a version. `logout` revokes the stored session at the hub, then discards the credentials.
+To install Twext, you will need:
 
-The rest of the registry commands: `checkout` unpacks a published version's source tarball into a directory (`twext checkout myext@1.2.0`, `myext@^1.2` to resolve a range first, defaults to your own namespace), `info` and `search` read the registry, `tag set`/`tag rm` move dist-tags, `deprecate` flags a version (or drops the flag with `--clear`), and `notifications` lists review decisions and broadcasts — rows are marked read only when you pass `--read`. `publish --private` uploads a version that only you and the accounts you grant access can see.
+1. A computer running Windows, MacOS, or a Linux distro.
+2. Node.js (recommended v24) installed with `npm`.
 
-For CI, create a scoped token once:
+### Steps
+
+Install with `npm`:
 
 ```bash
-twext token create --name ci --scope publish --scope yank
-TWEXTHUB_TOKEN=twext_... twext publish
+npm install @twext/twext
 ```
 
-Point either command at a different manifest with `-c`; override the build output with `-o`.
+## 💭 Feedback and Contributing
 
-## Installation
+Discussions are turned off here, just open an issue if you have a question, or if you find a bug/a new feature to add.
 
-Install globally to use the `twext` command anywhere:
+If you want to contribute to this project, feel free! People like you make smaller projects like this thrive. See the [Development Guide.](./docs/development.md)
 
-```bash
-npm install -g @twext/twext
-```
+## 📚 Also See...
 
-Or add it to a single project's dev dependencies:
-
-```bash
-npm install --save-dev @twext/twext
-```
-
-Then run it with `npx`:
-
-```bash
-npx twext init
-```
-
-Requires Node.js 24 or newer.
-
-## Editor setup
-
-VS Code autocompletes and validates `twext.yml` once you register its JSON schema. Install the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) (by Red Hat) and add this to your workspace:
-
-```jsonc
-// .vscode/settings.json
-{
-  "yaml.schemas": {
-    "./node_modules/@twext/twext/schema/twext.json": ["twext.yml"],
-  },
-}
-```
-
-For extension files, use `import("@twext/twext/types/extension")` in a JSDoc comment and enable JavaScript checking:
-
-```jsonc
-// jsconfig.json
-{
-  "compilerOptions": {
-    "checkJs": true,
-    "noEmit": true,
-  },
-}
-```
-
-```js
-// src/index.js
-/** @type {import("@twext/twext/types/extension").Blocks} */
-const hello = (args, util) => "Hello, world!";
-export const blocks = { hello };
-```
-
-## Feedback and Contributing
-
-Bug reports and feature requests go in [issues](https://github.com/twext/twext/issues); questions and ideas for the project are welcome in [discussions](https://github.com/twext/twext/discussions).
-
-Contributions are welcome — open an issue first if the change is bigger than a typo fix.
+- [Documentation](./docs/index.md)
+- [CLI Reference](./docs/cli.md)
+- [Twext Configuration](./docs/configuration.md)
+- [Agent Guide](./AGENT.md)
