@@ -50,13 +50,13 @@ Twext is a zero-config custom TurboWarp extension build tool meant to solve the 
 2. Scaffold your project:
 
    ```bash
-   npx twext init
+   node src/cli.js init
    ```
 
 3. Build the scaffolded extension:
 
    ```bash
-   npx twext # or twext build
+   node src/cli.js # or twext build
    ```
 
 To learn how to use Twext _and_ build a functioning extension at the same time, see [Build Your Extension.](./docs/build-your-extension.md)
