@@ -1677,3 +1677,292 @@ test("checkout cleans failed extraction and completes all writes before succeedi
     await hub.close();
   }
 });
+
+test("org create, update and delete act on the organization's own namespace", async () => {
+  const { dir, cleanup } = tmpHome();
+  let createAttempts = 0;
+  const hub = await createHub([
+    {
+      method: "POST",
+      path: "/orgs",
+      reply: (request) => {
+        if (request.authorization === "Bearer auto-tok") return termsProblem;
+        if (createAttempts++ === 0) return termsProblem;
+        return {
+          status: 201,
+          body: {
+            namespace: request.body.namespace,
+            displayName: "Acme",
+            bio: "",
+            createdAt: "2026-01-02T00:00:00Z",
+          },
+        };
+      },
+    },
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 4 } } },
+    {
+      method: "PATCH",
+      path: "/users/kamixfox",
+      reply: (request) => ({
+        status: 200,
+        body: { namespace: "kamixfox", termsAcceptedVersion: request.body.termsAcceptedVersion },
+      }),
+    },
+    {
+      method: "PATCH",
+      path: "/orgs/acme",
+      reply: (request) => ({ status: 200, body: { namespace: "acme", ...request.body } }),
+    },
+    { method: "DELETE", path: "/orgs/acme", reply: { status: 204 } },
+  ]);
+  try {
+    mkdirSync(join(dir, ".twext"));
+    writeFileSync(
+      join(dir, ".twext/config.json"),
+      JSON.stringify({ hub: hub.url, namespace: "kamixfox", token: "sess-1" }),
+    );
+    const created = await runCli(
+      [
+        "org",
+        "create",
+        "acme",
+        "--display-name",
+        "Acme",
+        "--website",
+        "https://acme.test",
+        "--url",
+        hub.url,
+      ],
+      { env: { HOME: dir } },
+    );
+    assert.equal(created.code, 0, created.stderr);
+    assert.match(created.stdout, /Created organization @acme/);
+    const posts = hub.requests.filter((r) => r.method === "POST" && r.path === "/orgs");
+    assert.equal(posts.length, 2, "retried after the terms gate");
+    const expected = {
+      namespace: "acme",
+      displayName: "Acme",
+      website: "https://acme.test",
+    };
+    assert.deepEqual(posts[0].body, expected);
+    assert.deepEqual(posts[1].body, expected);
+    const acceptance = hub.requests.find(
+      (r) => r.method === "PATCH" && r.path === "/users/kamixfox",
+    );
+    assert.deepEqual(
+      acceptance.body,
+      { termsAcceptedVersion: 4 },
+      "accepted on the account, not on the organization",
+    );
+
+    const updated = await runCli(
+      ["org", "update", "acme", "--bio", "Blocks for TurboWarp", "--github", "", "--url", hub.url],
+      { env: { HOME: dir } },
+    );
+    assert.equal(updated.code, 0, updated.stderr);
+    assert.match(updated.stdout, /Updated @acme/);
+    const patch = hub.requests.find((r) => r.method === "PATCH" && r.path === "/orgs/acme");
+    assert.deepEqual(patch.body, { bio: "Blocks for TurboWarp", github: null });
+
+    const nothing = await runCli(["org", "update", "acme", "--url", hub.url], {
+      env: { HOME: dir },
+    });
+    assert.equal(nothing.code, 1);
+    assert.match(nothing.stderr, /Nothing to change/);
+
+    const unconfirmed = await runCli(["org", "delete", "acme", "--url", hub.url], {
+      env: { HOME: dir },
+    });
+    assert.equal(unconfirmed.code, 1);
+    assert.match(unconfirmed.stderr, /Pass --force to confirm/);
+    assert.equal(
+      hub.requests.filter((r) => r.method === "DELETE").length,
+      0,
+      "nothing is deleted without --force",
+    );
+
+    const deleted = await runCli(["org", "delete", "acme", "--force", "--url", hub.url], {
+      env: { HOME: dir },
+    });
+    assert.equal(deleted.code, 0, deleted.stderr);
+    assert.match(deleted.stdout, /Deleted @acme/);
+    assert.equal(
+      hub.requests.filter((r) => r.method === "DELETE")[0].authorization,
+      "Bearer sess-1",
+    );
+
+    const withToken = await runCli(
+      ["org", "create", "acme", "--token", "auto-tok", "--url", hub.url],
+      { env: { HOME: dir } },
+    );
+    assert.equal(withToken.code, 1);
+    assert.match(withToken.stderr, /Accept the terms with a session \(twext login\)/);
+
+    const anonymous = await runCli(["org", "create", "acme", "--url", "https://hub.test"], {
+      env: { HOME: join(dir, "empty") },
+    });
+    assert.equal(anonymous.code, 1);
+    assert.match(anonymous.stderr, /No token/);
+
+    const bad = await runCli(["org", "info", "../admin", "--url", hub.url], { env: { HOME: dir } });
+    assert.equal(bad.code, 1);
+    assert.match(bad.stderr, /Namespace "\.\.\/admin" is invalid/);
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/orgs/acme" && r.method === "GET").length,
+      0,
+      "an invalid namespace never reaches the hub",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("org list, info, owners and extensions are public reads", async () => {
+  const { dir, cleanup } = tmpHome();
+  const organization = {
+    namespace: "acme",
+    displayName: "Acme",
+    bio: "Blocks for TurboWarp",
+    website: "https://acme.test",
+    github: "acme",
+    createdAt: "2026-01-02T00:00:00Z",
+  };
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/orgs",
+      reply: {
+        status: 200,
+        body: { data: [organization], _links: { self: "x", next: null, prev: null } },
+      },
+    },
+    { method: "GET", path: "/orgs/acme", reply: { status: 200, body: organization } },
+    {
+      method: "GET",
+      path: "/orgs/acme/owners",
+      reply: {
+        status: 200,
+        body: {
+          data: [
+            { namespace: "kamixfox", displayName: "Kane", addedAt: "2026-01-02T00:00:00Z" },
+            { namespace: "alice", displayName: "Alice", addedAt: "2026-03-04T00:00:00Z" },
+          ],
+        },
+      },
+    },
+    {
+      method: "GET",
+      path: "/orgs/acme/extensions",
+      reply: {
+        status: 200,
+        body: {
+          data: [
+            {
+              namespace: "acme",
+              id: "superutilities",
+              name: "Super Utilities",
+              version: "1.2.0",
+            },
+          ],
+          _links: { self: "x", next: null, prev: null },
+        },
+      },
+    },
+  ]);
+  try {
+    const env = { HOME: dir, TWEXTHUB_TOKEN: "sess-1" };
+
+    const list = await runCli(["org", "list", "--url", hub.url], { env });
+    assert.equal(list.code, 0, list.stderr);
+    assert.match(list.stdout, /1 organization/);
+    assert.match(list.stdout, /Acme \(@acme\)/);
+
+    const info = await runCli(["org", "info", "acme", "--url", hub.url], { env });
+    assert.equal(info.code, 0, info.stderr);
+    assert.match(info.stdout, /Acme \(@acme\)/);
+    assert.match(info.stdout, /Blocks for TurboWarp/);
+    assert.match(info.stdout, /github\.com\/acme/);
+    assert.match(info.stdout, /created 2026-01-02/);
+
+    const owners = await runCli(["org", "owners", "acme", "--url", hub.url], { env });
+    assert.equal(owners.code, 0, owners.stderr);
+    assert.match(owners.stdout, /2 owners of @acme/);
+    assert.match(owners.stdout, /Kane \(@kamixfox\) since 2026-01-02/);
+
+    const extensions = await runCli(
+      ["org", "extensions", "acme", "--sort", "downloads", "--license", "MIT", "--url", hub.url],
+      { env },
+    );
+    assert.equal(extensions.code, 0, extensions.stderr);
+    assert.match(extensions.stdout, /1 extension in @acme/);
+    assert.match(extensions.stdout, /Super Utilities \(@acme\/superutilities@1\.2\.0\)/);
+    const listing = hub.requests.find((r) => r.path === "/orgs/acme/extensions");
+    assert.equal(listing.query, "limit=50&sort=downloads&license=MIT");
+    assert.equal(
+      listing.authorization,
+      "Bearer sess-1",
+      "the listing carries the token so an owner sees the private extensions",
+    );
+
+    for (const path of ["/orgs", "/orgs/acme", "/orgs/acme/owners"]) {
+      assert.equal(
+        hub.requests.find((r) => r.path === path).authorization,
+        null,
+        `${path} carries no credentials`,
+      );
+    }
+
+    const bad = await runCli(["org", "extensions", "acme", "--sort", "bogus", "--url", hub.url], {
+      env,
+    });
+    assert.equal(bad.code, 1);
+    assert.match(bad.stderr, /--sort must be one of/);
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("org add and remove work on the owner list, and the hub's refusals reach the terminal", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    { method: "PUT", path: "/orgs/acme/owners/alice", reply: { status: 204 } },
+    {
+      method: "DELETE",
+      path: "/orgs/acme/owners/kamixfox",
+      reply: { status: 409, body: { detail: "That is the only owner." } },
+    },
+  ]);
+  try {
+    const env = { HOME: dir, TWEXTHUB_TOKEN: "sess-1" };
+
+    const added = await runCli(["org", "add", "acme", "alice", "--url", hub.url], { env });
+    assert.equal(added.code, 0, added.stderr);
+    assert.match(added.stdout, /Added @alice as an owner of @acme/);
+    const grant = hub.requests.find((r) => r.method === "PUT");
+    assert.equal(grant.authorization, "Bearer sess-1");
+
+    const refused = await runCli(["org", "remove", "acme", "kamixfox", "--url", hub.url], {
+      env,
+    });
+    assert.equal(refused.code, 1);
+    assert.match(refused.stderr, /That is the only owner/);
+
+    const missing = await runCli(["org", "add", "acme", "--url", hub.url], { env });
+    assert.equal(missing.code, 1);
+    assert.match(missing.stderr, /Usage: twext org add/);
+    assert.equal(
+      hub.requests.filter((r) => r.method === "PUT").length,
+      1,
+      "a missing account never reaches the hub",
+    );
+
+    const unknown = await runCli(["org", "frobnicate", "--url", hub.url], { env });
+    assert.equal(unknown.code, 1);
+    assert.match(unknown.stderr, /Unknown org subcommand "frobnicate"/);
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});

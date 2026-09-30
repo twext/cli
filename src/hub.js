@@ -260,3 +260,51 @@ export async function setDeprecation(base, token, namespace, id, version, messag
     body: { deprecationMessage: message },
   });
 }
+
+// An organization is a namespace with an owner list instead of a password: the
+// caller becomes its first owner, and after that only the owner list can change
+// it. Adding an owner is a PUT that answers 204 whether or not the account was
+// already one.
+export async function createOrganization(base, token, body) {
+  return hubRequest(base, "/orgs", { method: "POST", token, body });
+}
+
+export async function getOrganization(base, namespace) {
+  return hubRequest(base, `/orgs/${namespace}`);
+}
+
+export async function updateOrganization(base, token, namespace, body) {
+  return hubRequest(base, `/orgs/${namespace}`, { method: "PATCH", token, body });
+}
+
+export async function deleteOrganization(base, token, namespace) {
+  return hubRequest(base, `/orgs/${namespace}`, { method: "DELETE", token });
+}
+
+export async function listOrganizations(base) {
+  return allPages(base, "/orgs?limit=50");
+}
+
+export async function listOrganizationOwners(base, namespace) {
+  return hubRequest(base, `/orgs/${namespace}/owners`);
+}
+
+export async function addOrganizationOwner(base, token, namespace, ownerNamespace) {
+  return hubRequest(base, `/orgs/${namespace}/owners/${ownerNamespace}`, { method: "PUT", token });
+}
+
+export async function removeOrganizationOwner(base, token, namespace, ownerNamespace) {
+  return hubRequest(base, `/orgs/${namespace}/owners/${ownerNamespace}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// An owner of the organization sees its private extensions in the listing, which
+// only happens when the request carries a bearer token.
+export async function listOrganizationExtensions(base, namespace, sort, license, token) {
+  const query = new URLSearchParams({ limit: "50" });
+  if (sort) query.set("sort", sort);
+  if (license) query.set("license", license);
+  return allPages(base, `/orgs/${namespace}/extensions?${query}`, token);
+}
