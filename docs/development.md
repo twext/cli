@@ -64,7 +64,8 @@ node src/cli.js validate -c path/to/project/twext.yml
 | `src/spec.js`                                  | Parses `id@version` specs and decides whether a version is a range.                                                |
 | `src/project.js`                               | Reads `twext.yml` and imports the entry point.                                                                     |
 | `src/tarball.js`                               | Packs a project for `twext publish`.                                                                               |
-| `src/prompt.js`, `src/log.js`, `src/config.js` | Terminal prompts, the colored output, and loading `product.yml`.                                                   |
+| `src/prompt.js`, `src/log.js`, `src/format.js` | Terminal prompts, the colored output, and the day a hub timestamp is printed as.                                   |
+| `src/config.js`                                | Loads `product.yml`.                                                                                               |
 | `schema/twext.json`                            | The JSON Schema editors point at for `twext.yml`.                                                                  |
 | `types/extension.d.ts`                         | The types editors import for the entry point module.                                                               |
 | `product.yml`                                  | The name, command, version, tagline, output symbols, and defaults. Everything user-visible that isn't in the code. |

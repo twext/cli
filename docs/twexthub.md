@@ -28,6 +28,10 @@ This file will explain how to use TwextHub with the Twext CLI. If you're looking
   - [Deprecating a Version](#deprecating-a-version)
   - [Yanking a Version](#yanking-a-version)
 - [🤖 Publishing From CI](#-publishing-from-ci)
+- [👥 Organizations](#-organizations)
+  - [Who Runs It](#who-runs-it)
+  - [Editing the Profile](#editing-the-profile)
+  - [Deleting One](#deleting-one)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -213,3 +217,73 @@ TWEXTHUB_TOKEN=twext_... twext publish
 Keep it in your CI provider's secret store rather than in the repository. The `publish` and `yank` scopes are the only ones that exist, and a token can be revoked from the web UI if it leaks.
 
 > **Important:** A token can't accept the hub's Terms of Service. The first `publish` in a workflow fails until you've published once with `twext login` and agreed to the terms there.
+
+## 👥 Organizations
+
+An organization is a namespace that has owners instead of a password. It can't sign in — the accounts on its owner list act for it, and every one of them has the same rights over it. Use one when a team, a project, or a pile of unrelated extensions should share a namespace.
+
+`twext org create` makes one, and you become its first owner:
+
+```bash
+twext org create acme --display-name "Acme" --website https://acme.test
+# ✓ Created organization @acme
+```
+
+The namespace is shared with accounts, so a name already in use is a conflict the same way it is for `signup`. Like `signup`, creating one needs the current Terms of Service accepted, and the command does that for you when it has a session from `twext login`.
+
+Publishing under it is publishing under any other namespace:
+
+```bash
+twext publish --namespace acme
+```
+
+### Who Runs It
+
+Add the accounts that should act for the organization, and see who's on the list:
+
+```bash
+twext org add acme kamixfox
+twext org owners acme
+# 2 owners of @acme
+#   • Kane (@kamixfox) since 2026-01-02
+#   • Alice (@alice) since 2026-03-04
+```
+
+Each account you add is notified. The last owner can't be removed, since a namespace nobody owns can't be changed at all — hand it to another account, or delete the organization.
+
+### Editing the Profile
+
+The profile is the display name, bio, website, and GitHub username. `org info` shows what's there now:
+
+```bash
+twext org info acme
+# Acme (@acme)
+#   Blocks for TurboWarp
+#   https://acme.test
+#   github.com/acme
+#   created 2026-01-02
+```
+
+`twext org update` changes whichever of those you pass and leaves the rest alone. Pass a field as an empty string to clear it:
+
+```bash
+twext org update acme --bio "Blocks for TurboWarp" --website ""
+```
+
+The avatar and banner aren't CLI flags; set them from the web UI.
+
+`twext org list` lists every organization on the hub, and `twext org extensions acme` lists what one of them has published, with the same `--sort` and an extra `--license` filter:
+
+```bash
+twext org extensions acme --sort downloads --license MIT
+```
+
+### Deleting One
+
+`twext org delete` takes the whole namespace down: every extension, version, image, and webhook under it, along with the owner rows. It needs `--force` to say that's what you meant:
+
+```bash
+twext org delete acme --force
+```
+
+This can't be undone from the CLI. The names aren't redirected anywhere, so `@acme/<id>` stops resolving for anyone who has it installed.

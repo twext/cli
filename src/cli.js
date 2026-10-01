@@ -18,6 +18,7 @@ import { infoCommand } from "./commands/info.js";
 import { searchCommand } from "./commands/search.js";
 import { notificationsCommand } from "./commands/notifications.js";
 import { tokenCommand } from "./commands/token.js";
+import { orgCommand } from "./commands/org.js";
 
 const OPTIONS = {
   help: { type: "boolean", short: "h" },
@@ -37,6 +38,10 @@ const OPTIONS = {
   read: { type: "boolean" },
   sort: { type: "string" },
   clear: { type: "boolean" },
+  bio: { type: "string" },
+  website: { type: "string" },
+  github: { type: "string" },
+  license: { type: "string" },
 };
 
 function helpText(product) {
@@ -60,24 +65,29 @@ Commands:
   search        Search published extensions (twext search turbo)
   notifications List hub notifications (--read marks them read)
   token         Create an automation token for CI (e.g. twext token create)
+  org           Manage organizations (e.g. twext org create acme)
   help          Show this help
 
 Options:
   -c, --config <file>      Path to ${product.defaults.configFilename} (default: ${product.defaults.configFilename})
   -o, --out <file>         Override the output path (build only)
-  -f, --force              Overwrite existing files (init only)
+  -f, --force              Overwrite existing files (init only); confirms org delete
   -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v1)
   -n, --namespace <name>   Account namespace (login/signup; login default: stored)
   --password <password>    Account password (login/signup; prompts when omitted)
-  --display-name <name>    Account display name (signup only)
+  --display-name <name>    Display name (signup; org create/update)
   --token <token>          Bearer token override (default: \\$TWEXTHUB_TOKEN, then stored)
   --name <name>            Token name (token create only)
   --scope <scope>          Token scope, repeatable (token create only; default: publish)
   --expires-in-days <days> Token lifetime (token create only)
   --private                Publish a private version (publish only)
   --read                   Mark the listed notifications as read (notifications only)
-  --sort <key>             Search order: recent, downloads, updated, name (search only)
+  --sort <key>             Order: recent, downloads, updated, name (search, org extensions)
   --clear                  Drop a deprecation message (deprecate only)
+  --bio <text>             Organization bio, "" clears it (org create/update)
+  --website <url>          Organization website, "" clears it (org create/update)
+  --github <user>          GitHub username, "" clears it (org create/update)
+  --license <id>           SPDX license to filter by (org extensions only)
   -h, --help               Show this help
   -v, --version            Print the version`;
 }
@@ -152,6 +162,8 @@ async function main(args) {
       return (await notificationsCommand(product, values, log)) ? 0 : 1;
     case "token":
       return (await tokenCommand(product, positionals[1], values, log)) ? 0 : 1;
+    case "org":
+      return (await orgCommand(product, positionals[1], positionals.slice(2), values, log)) ? 0 : 1;
     default:
       log.error(`Unknown command "${command}"`);
       console.log(helpText(product));

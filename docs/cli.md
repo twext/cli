@@ -18,6 +18,7 @@ twext <command> [options]
 - [🛜 TwextHub](#-twexthub)
   - [Options](#options)
   - [Extension Specs](#extension-specs)
+  - [Organizations](#organizations)
 - [🔑 Credentials and Hub URLs](#-credentials-and-hub-urls)
 - [🔄 Publishing](#-publishing)
 - [🧰 Other Options](#-other-options)
@@ -76,6 +77,15 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 | `twext checkout <id>[@version] [directory]` | Download a published version's sources into a directory.              |
 | `twext notifications`                       | List account notifications.                                           |
 | `twext token create`                        | Create an automation token for CI.                                    |
+| `twext org create <namespace>`              | Create an organization; you become its first owner.                   |
+| `twext org list`                            | List the organizations on the hub.                                    |
+| `twext org info <namespace>`                | Show an organization's profile.                                       |
+| `twext org update <namespace>`              | Change the profile fields.                                            |
+| `twext org delete <namespace> --force`      | Delete the organization and everything published under it.            |
+| `twext org owners <namespace>`              | List an organization's owners.                                        |
+| `twext org add <namespace> <account>`       | Add an owner.                                                         |
+| `twext org remove <namespace> <account>`    | Remove an owner.                                                      |
+| `twext org extensions <namespace>`          | List the extensions published under the namespace.                    |
 
 ### Options
 
@@ -84,19 +94,24 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 | `-u`, `--url <base>`       | all hub commands                                          | Hub API base URL.                                                              |
 | `-n`, `--namespace <name>` | `login`, `signup`, `checkout`, `deprecate`, `tag`, `info` | Account namespace to act as.                                                   |
 | `--password <password>`    | `login`, `signup`                                         | Password. Prompts when omitted.                                                |
-| `--display-name <name>`    | `signup`                                                  | Display name for the new account.                                              |
+| `--display-name <name>`    | `signup`, `org create`, `org update`                      | Display name for the new account or organization.                              |
 | `--token <token>`          | all authenticated hub commands                            | Bearer token, instead of the stored one.                                       |
 | `--private`                | `publish`                                                 | Publish a version only you and the accounts you grant access can see.          |
 | `--read`                   | `notifications`                                           | Mark the listed notifications as read.                                         |
-| `--sort <key>`             | `search`                                                  | `recent`, `downloads`, `updated`, or `name`.                                   |
+| `--sort <key>`             | `search`, `org extensions`                                | `recent`, `downloads`, `updated`, or `name`.                                   |
 | `--clear`                  | `deprecate`                                               | Remove the deprecation message instead of setting one.                         |
+| `--bio <text>`             | `org create`, `org update`                                | Organization bio. An empty value clears it.                                    |
+| `--website <url>`          | `org create`, `org update`                                | Organization website. An empty value clears it.                                |
+| `--github <user>`          | `org create`, `org update`                                | GitHub username shown on the profile. An empty value clears it.                |
+| `--license <id>`           | `org extensions`                                          | Only extensions under this SPDX license, e.g. `MIT`.                           |
+| `-f`, `--force`            | `init`, `org delete`                                      | Overwrite existing files; required by `org delete`.                            |
 | `--name <name>`            | `token create`                                            | Name for the token. Defaults to `CI`.                                          |
 | `--scope <scope>`          | `token create`                                            | `publish` and/or `yank`, repeatable or comma-separated. Defaults to `publish`. |
 | `--expires-in-days <days>` | `token create`                                            | Lifetime of the token.                                                         |
 
 `login` and `signup` prompt for anything you leave out, and `login` reads the stored namespace when you don't pass `-n`.
 
-`publish`, `yank`, `deprecate`, and the `tag` subcommands all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, unless the extension has private versions.
+`publish`, `yank`, `deprecate`, and the `tag` subcommands all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, unless the extension has private versions. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` only to see private ones.
 
 ### Extension Specs
 
@@ -116,6 +131,30 @@ A namespace is 1 to 40 lower-case letters, digits, and hyphens, and can't start 
 A version with range syntax in it — `^`, `~`, `*`, `<`, `>`, `=`, a space, a partial like `1.x`, or a bare `1.2` — is a range, not an exact version. Twext asks the hub for the versions that match and takes the highest one, which is why `myext@1.2` gives you `1.2.9` and not `1.2.0`. Write all three parts when you mean one specific release.
 
 `yank`, `deprecate`, and `tag` act on the extension in the current directory instead. They read `extension.id` from `twext.yml` and refuse to run when it's missing.
+
+### Organizations
+
+An organization is a namespace with an owner list instead of a password. It can't sign in; the accounts on its owner list act for it, and each of them has the same rights over it. [Using TwextHub](./twexthub.md#-organizations) walks through the workflow.
+
+```text
+twext org create <namespace> [--display-name NAME] [--bio TEXT] [--website URL] [--github USER]
+twext org list
+twext org info <namespace>
+twext org update <namespace> [profile flags]
+twext org delete <namespace> --force
+twext org owners <namespace>
+twext org add <namespace> <account>
+twext org remove <namespace> <account>
+twext org extensions <namespace> [--sort KEY] [--license SPDX]
+```
+
+Only the profile flags a subcommand was given are sent, so `org update` leaves the rest alone, and a flag passed as an empty value clears that field. `org delete` cascades to every extension, version, image and webhook under the namespace, which is why it needs `--force`.
+
+Publishing under the organization is publishing under another namespace, so nothing about `publish` changes:
+
+```bash
+twext publish --namespace acme
+```
 
 ## 🔑 Credentials and Hub URLs
 

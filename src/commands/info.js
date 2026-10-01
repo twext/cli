@@ -1,3 +1,4 @@
+import { day } from "../format.js";
 import {
   getExtension,
   getVersion,
@@ -7,8 +8,6 @@ import {
   resolveToken,
 } from "../hub.js";
 import { isRange, resolveSpec } from "../spec.js";
-
-const day = (iso) => (typeof iso === "string" ? iso.slice(0, 10) : "unknown date");
 
 async function printExtension(log, hub, token, namespace, id) {
   const detail = await getExtension(hub, namespace, id, token);
