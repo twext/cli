@@ -13,8 +13,15 @@ export type Blocks = Record<string, Handler<any>>;
 /** Code run once when the extension loads. Also accepts raw source strings. */
 export type Setup = (() => void) | string | string[];
 
+/** A shared helper published on the extension class. */
+export type Method = (this: unknown, ...args: any[]) => unknown;
+
+/** A map of method name -> function. Your entryPoint exports this as `methods`. */
+export type Methods = Record<string, Method>;
+
 /** The shape twext expects an entryPoint module to have. */
 export interface Extension {
   blocks: Blocks;
   setup?: Setup;
+  methods?: Methods;
 }
