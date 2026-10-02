@@ -1,6 +1,6 @@
 # 📦 Twext
 
-[![CI](https://github.com/twext/twext/actions/workflows/ci.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/ci.yml) [![CD](https://github.com/twext/twext/actions/workflows/cd.yml/badge.svg)](https://github.com/twext/twext/actions/workflows/cd.yml)
+[![CI](https://github.com/twext/cli/actions/workflows/ci.yml/badge.svg)](https://github.com/twext/cli/actions/workflows/ci.yml) [![CD](https://github.com/twext/cli/actions/workflows/cd.yml/badge.svg)](https://github.com/twext/cli/actions/workflows/cd.yml)
 
 > _Build custom TurboWarp extensions with JavaScript modules (ESM)._
 
