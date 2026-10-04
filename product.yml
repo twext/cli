@@ -12,5 +12,5 @@ symbols:
 defaults:
   configFilename: "twext.yml"
   outputDirectory: "dist"
-  devPort: 8090
+  devPort: 8000
   fallbackColor: "#0070F3"
