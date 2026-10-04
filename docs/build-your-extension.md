@@ -86,6 +86,12 @@ For the sake of this tutorial, we won't be using `twext init`. But, the init scr
 
 6. Add `dist/extension.js` to TurboWarp as an unsandboxed extension, and you should see a `say hello` reporter in the palette.
 
+While you're iterating, `twext dev` rebuilds on every save and serves the extension at a URL you add to TurboWarp once, so you don't have to rebuild and re-add the file each time:
+
+```bash
+npx twext dev
+```
+
 The best way to learn how to code extensions with Twext is to experiment with the tool. If you find anything wrong, or a behavior is there that you think should be changed, please make an issue.
 
 ## 🔤 Adding an Argument
