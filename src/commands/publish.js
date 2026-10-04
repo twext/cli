@@ -1,6 +1,6 @@
-import { resolve } from "node:path";
 import { compileExtension } from "../compile.js";
 import { validateProject } from "../validate.js";
+import { resolveOutputPath } from "../project.js";
 import {
   HubError,
   NAMESPACE_PATTERN,
@@ -47,9 +47,7 @@ export async function publishCommand(product, configPath, { url, token, private:
     return false;
   }
 
-  const output = config.outputPath
-    ? resolve(root, config.outputPath)
-    : resolve(root, product.defaults.outputDirectory, "extension.js");
+  const output = resolveOutputPath(product, config, root);
   let tarball;
   try {
     tarball = await createProjectTarball(root, configPath, output);

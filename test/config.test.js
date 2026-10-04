@@ -14,6 +14,7 @@ test("loadProduct reads product.yml", () => {
   assert.equal(product.name, "Twext");
   assert.equal(product.symbols.success, "✓");
   assert.equal(product.defaults.fallbackColor, "#0070F3");
+  assert.equal(product.defaults.devPort, 8000);
 });
 
 test("readProjectConfig parses nested mappings and block lists", () => {

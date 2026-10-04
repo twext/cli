@@ -63,6 +63,8 @@ node src/cli.js validate -c path/to/project/twext.yml
 | `src/hub.js`                                   | The TwextHub HTTP client, plus reading and writing `~/.twext/config.json`.                                         |
 | `src/spec.js`                                  | Parses `id@version` specs and decides whether a version is a range.                                                |
 | `src/project.js`                               | Reads `twext.yml` and imports the entry point.                                                                     |
+| `src/dev-server.js`                            | The HTTP server behind `twext dev`: routes the extension and the index page, and sends the no-cache headers.       |
+| `src/dev-build.js`                             | The worker `twext dev` spawns for each rebuild, loading only the compiler instead of the whole CLI.                |
 | `src/tarball.js`                               | Packs a project for `twext publish`.                                                                               |
 | `src/prompt.js`, `src/log.js`, `src/format.js` | Terminal prompts, the colored output, and the day a hub timestamp is printed as.                                   |
 | `src/config.js`                                | Loads `product.yml`.                                                                                               |
@@ -72,7 +74,7 @@ node src/cli.js validate -c path/to/project/twext.yml
 | `test/`, `test-fixtures/`                      | The test suite and the projects it runs against.                                                                   |
 | `docs/`                                        | The documentation in this directory.                                                                               |
 
-`product.yml` deserves a note: `twext --version` prints its `version`, the help text prints its `name` and `tagline`, the log symbols and colors come from it, and `defaults` supplies the config filename, the output directory, and the fallback block color. A change to a default there changes Twext's behavior, so it needs a test.
+`product.yml` deserves a note: `twext --version` prints its `version`, the help text prints its `name` and `tagline`, the log symbols and colors come from it, and `defaults` supplies the config filename, the output directory, the dev server port, and the fallback block color. A change to a default there changes Twext's behavior, so it needs a test.
 
 ## 🧪 Tests
 

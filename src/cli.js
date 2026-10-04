@@ -6,6 +6,7 @@ import { createLogger } from "./log.js";
 import { initCommand } from "./commands/init.js";
 import { validateCommand } from "./commands/validate.js";
 import { buildCommand } from "./commands/build.js";
+import { devCommand } from "./commands/dev.js";
 import { loginCommand } from "./commands/login.js";
 import { signupCommand } from "./commands/signup.js";
 import { logoutCommand } from "./commands/logout.js";
@@ -42,6 +43,7 @@ const OPTIONS = {
   website: { type: "string" },
   github: { type: "string" },
   license: { type: "string" },
+  port: { type: "string", short: "p" },
 };
 
 function helpText(product) {
@@ -51,6 +53,7 @@ Usage: ${product.command} <command> [options]
 
 Commands:
   build         Validate and compile the extension (default)
+  dev           Rebuild on change and serve the extension at http://localhost:8090
   validate      Check blocks against the entryPoint handlers
   init          Scaffold a new project in a directory
   login         Sign in to a TwextHub hub
@@ -70,7 +73,8 @@ Commands:
 
 Options:
   -c, --config <file>      Path to ${product.defaults.configFilename} (default: ${product.defaults.configFilename})
-  -o, --out <file>         Override the output path (build only)
+  -o, --out <file>         Override the output path (build, dev)
+  -p, --port <number>      Port for the dev server (default: 8090)
   -f, --force              Overwrite existing files (init only); confirms org delete
   -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v1)
   -n, --namespace <name>   Account namespace (login/signup; login default: stored)
@@ -120,6 +124,8 @@ async function main(args) {
       return (await buildCommand(product, configPath, values.out ? resolve(values.out) : null, log))
         ? 0
         : 1;
+    case "dev":
+      return (await devCommand(product, configPath, values, log)) ? 0 : 1;
     case "login":
       return (await loginCommand(product, values, log)) ? 0 : 1;
     case "signup":
