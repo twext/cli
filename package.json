@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
-    "url": "git+https://github.com/twext/twext.git"
+    "url": "git+https://github.com/twext/cli.git"
   },
   "bin": {
     "twext": "src/cli.js"
