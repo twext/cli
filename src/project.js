@@ -13,6 +13,15 @@ export function readProjectConfig(configPath) {
   return parse(text) ?? {};
 }
 
+// Where a build lands: the flag when one was given, then the manifest, then the
+// default directory under the project.
+export function resolveOutputPath(product, config, root, override) {
+  if (override) return resolve(override);
+  return config.outputPath
+    ? resolve(root, config.outputPath)
+    : resolve(root, product.defaults.outputDirectory, "extension.js");
+}
+
 export async function loadProject(configPath) {
   const config = readProjectConfig(configPath);
   const root = dirname(resolve(configPath));

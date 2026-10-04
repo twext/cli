@@ -1,7 +1,8 @@
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { compileExtension } from "../compile.js";
 import { validateProject } from "../validate.js";
+import { resolveOutputPath } from "../project.js";
 
 export async function buildCommand(product, configPath, outOverride, log) {
   const result = await validateProject(configPath);
@@ -12,11 +13,7 @@ export async function buildCommand(product, configPath, outOverride, log) {
   for (const message of result.warnings) log.warn(message);
 
   const { config, root, module: mod } = result.project;
-  const output =
-    outOverride ??
-    (config.outputPath
-      ? resolve(root, config.outputPath)
-      : resolve(root, product.defaults.outputDirectory, "extension.js"));
+  const output = resolveOutputPath(product, config, root, outOverride);
 
   log.progress(`Building ${config.extension?.name ?? config.name ?? "extension"}...`);
   mkdirSync(dirname(output), { recursive: true });
